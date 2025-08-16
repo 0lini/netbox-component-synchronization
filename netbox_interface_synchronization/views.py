@@ -1,41 +1,97 @@
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import View
-from dcim.models import Device, Interface, InterfaceTemplate, PowerPort, PowerPortTemplate, ConsolePort, \
-    ConsolePortTemplate, ConsoleServerPort, ConsoleServerPortTemplate, DeviceBay, DeviceBayTemplate, FrontPort, \
-    FrontPortTemplate, PowerOutlet, PowerOutletTemplate, RearPort, RearPortTemplate
+from dcim.models import (
+    Device,
+    Interface,
+    InterfaceTemplate,
+    PowerPort,
+    PowerPortTemplate,
+    ConsolePort,
+    ConsolePortTemplate,
+    ConsoleServerPort,
+    ConsoleServerPortTemplate,
+    DeviceBay,
+    DeviceBayTemplate,
+    FrontPort,
+    FrontPortTemplate,
+    PowerOutlet,
+    PowerOutletTemplate,
+    RearPort,
+    RearPortTemplate,
+)
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.conf import settings
 from django.contrib import messages
 
 from .utils import get_components, post_components
-from .comparison import FrontPortComparison, PowerPortComparison, PowerOutletComparison, InterfaceComparison, \
-    ConsolePortComparison, ConsoleServerPortComparison, DeviceBayComparison, RearPortComparison
+from .comparison import (
+    FrontPortComparison,
+    PowerPortComparison,
+    PowerOutletComparison,
+    InterfaceComparison,
+    ConsolePortComparison,
+    ConsoleServerPortComparison,
+    DeviceBayComparison,
+    RearPortComparison,
+)
 from .forms import ComponentComparisonForm
 
-config = settings.PLUGINS_CONFIG['netbox_interface_synchronization']
+config = settings.PLUGINS_CONFIG["netbox_interface_synchronization"]
 
 
 class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of interfaces between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_interface", "dcim.add_interface", "dcim.change_interface", "dcim.delete_interface")
+        "dcim.view_interface",
+        "dcim.add_interface",
+        "dcim.change_interface",
+        "dcim.delete_interface",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
         interfaces = device.vc_interfaces()
         if config["exclude_virtual_interfaces"]:
             interfaces = list(filter(lambda i: not i.is_virtual, interfaces))
-        interface_templates = InterfaceTemplate.objects.filter(device_type=device.device_type)
+        interface_templates = InterfaceTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_interfaces = [
-            InterfaceComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.mgmt_only) for i
-            in interfaces]
+            InterfaceComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.mgmt_only,
+            )
+            for i in interfaces
+        ]
         unified_interface_templates = [
-            InterfaceComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.mgmt_only,
-                                is_template=True) for i in interface_templates]
+            InterfaceComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.mgmt_only,
+                is_template=True,
+            )
+            for i in interface_templates
+        ]
 
-        return get_components(request, device, interfaces, unified_interfaces, unified_interface_templates,
-                              "Interfaces")
+        return get_components(
+            request,
+            device,
+            interfaces,
+            unified_interfaces,
+            unified_interface_templates,
+            "Interfaces",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -44,7 +100,9 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             interfaces = device.vc_interfaces()
             if config["exclude_virtual_interfaces"]:
                 interfaces = interfaces.exclude(type__in=["virtual", "lag"])
-            interface_templates = InterfaceTemplate.objects.filter(device_type=device.device_type)
+            interface_templates = InterfaceTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of interfaces to rename
             fix_name_components = filter(
@@ -52,45 +110,104 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             )
 
             unified_interface_templates = [
-                InterfaceComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.mgmt_only,
-                                    is_template=True) for i in interface_templates]
+                InterfaceComparison(
+                    i.id,
+                    i.name,
+                    i.label,
+                    i.description,
+                    i.type,
+                    i.get_type_display(),
+                    i.mgmt_only,
+                    is_template=True,
+                )
+                for i in interface_templates
+            ]
 
             unified_interfaces = []
 
             for component in fix_name_components:
-                unified_interfaces.append((component, InterfaceComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description,
-                    component.type,
-                    component.get_type_display(),
-                    component.mgmt_only)))
+                unified_interfaces.append(
+                    (
+                        component,
+                        InterfaceComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                            component.type,
+                            component.get_type_display(),
+                            component.mgmt_only,
+                        ),
+                    )
+                )
 
-            return post_components(request, device, interfaces, interface_templates, Interface, InterfaceTemplate,
-                                   unified_interfaces, unified_interface_templates, "interfaces")
+            return post_components(
+                request,
+                device,
+                interfaces,
+                interface_templates,
+                Interface,
+                InterfaceTemplate,
+                unified_interfaces,
+                unified_interface_templates,
+                "interfaces",
+            )
 
 
 class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of power ports between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_powerport", "dcim.add_powerport", "dcim.change_powerport", "dcim.delete_powerport")
+        "dcim.view_powerport",
+        "dcim.add_powerport",
+        "dcim.change_powerport",
+        "dcim.delete_powerport",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         powerports = device.powerports.all()
-        powerports_templates = PowerPortTemplate.objects.filter(device_type=device.device_type)
+        powerports_templates = PowerPortTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_powerports = [
-            PowerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.maximum_draw,
-                                i.allocated_draw) for i in powerports]
+            PowerPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.maximum_draw,
+                i.allocated_draw,
+            )
+            for i in powerports
+        ]
         unified_powerport_templates = [
-            PowerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.maximum_draw,
-                                i.allocated_draw, is_template=True) for i in powerports_templates]
+            PowerPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.maximum_draw,
+                i.allocated_draw,
+                is_template=True,
+            )
+            for i in powerports_templates
+        ]
 
-        return get_components(request, device, powerports, unified_powerports, unified_powerport_templates,
-                              "Power ports")
+        return get_components(
+            request,
+            device,
+            powerports,
+            unified_powerports,
+            unified_powerport_templates,
+            "Power ports",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -98,7 +215,9 @@ class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             powerports = device.powerports.all()
-            powerports_templates = PowerPortTemplate.objects.filter(device_type=device.device_type)
+            powerports_templates = PowerPortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of power ports to rename
             fix_name_components = filter(
@@ -106,46 +225,97 @@ class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             )
 
             unified_powerport_templates = [
-                PowerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.maximum_draw,
-                                    i.allocated_draw, is_template=True) for i in powerports_templates]
+                PowerPortComparison(
+                    i.id,
+                    i.name,
+                    i.label,
+                    i.description,
+                    i.type,
+                    i.get_type_display(),
+                    i.maximum_draw,
+                    i.allocated_draw,
+                    is_template=True,
+                )
+                for i in powerports_templates
+            ]
 
             unified_powerports = []
 
             for component in fix_name_components:
-                unified_powerports.append((component, PowerPortComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description,
-                    component.type,
-                    component.get_type_display(),
-                    component.maximum_draw,
-                    component.allocated_draw)))
+                unified_powerports.append(
+                    (
+                        component,
+                        PowerPortComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                            component.type,
+                            component.get_type_display(),
+                            component.maximum_draw,
+                            component.allocated_draw,
+                        ),
+                    )
+                )
 
-            return post_components(request, device, powerports, powerports_templates, PowerPort, PowerPortTemplate,
-                                   unified_powerports, unified_powerport_templates, "power ports")
+            return post_components(
+                request,
+                device,
+                powerports,
+                powerports_templates,
+                PowerPort,
+                PowerPortTemplate,
+                unified_powerports,
+                unified_powerport_templates,
+                "power ports",
+            )
 
 
 class ConsolePortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of console ports between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_consoleport", "dcim.add_consoleport", "dcim.change_consoleport", "dcim.delete_consoleport")
+        "dcim.view_consoleport",
+        "dcim.add_consoleport",
+        "dcim.change_consoleport",
+        "dcim.delete_consoleport",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         consoleports = device.consoleports.all()
-        consoleports_templates = ConsolePortTemplate.objects.filter(device_type=device.device_type)
+        consoleports_templates = ConsolePortTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_consoleports = [
-            ConsolePortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display()) for i in
-            consoleports]
+            ConsolePortComparison(
+                i.id, i.name, i.label, i.description, i.type, i.get_type_display()
+            )
+            for i in consoleports
+        ]
         unified_consoleport_templates = [
-            ConsolePortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), is_template=True)
-            for i in consoleports_templates]
+            ConsolePortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                is_template=True,
+            )
+            for i in consoleports_templates
+        ]
 
-        return get_components(request, device, consoleports, unified_consoleports, unified_consoleport_templates,
-                              "Console ports")
+        return get_components(
+            request,
+            device,
+            consoleports,
+            unified_consoleports,
+            unified_consoleport_templates,
+            "Console ports",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -153,7 +323,9 @@ class ConsolePortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             consoleports = device.consoleports.all()
-            consoleports_templates = ConsolePortTemplate.objects.filter(device_type=device.device_type)
+            consoleports_templates = ConsolePortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of console ports to rename
             fix_name_components = filter(
@@ -161,45 +333,95 @@ class ConsolePortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             )
 
             unified_consoleport_templates = [
-                ConsolePortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                      is_template=True) for i in consoleports_templates]
+                ConsolePortComparison(
+                    i.id,
+                    i.name,
+                    i.label,
+                    i.description,
+                    i.type,
+                    i.get_type_display(),
+                    is_template=True,
+                )
+                for i in consoleports_templates
+            ]
 
             unified_consoleports = []
 
             for component in fix_name_components:
-                unified_consoleports.append((component, ConsolePortComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description,
-                    component.type,
-                    component.get_type_display())))
+                unified_consoleports.append(
+                    (
+                        component,
+                        ConsolePortComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                            component.type,
+                            component.get_type_display(),
+                        ),
+                    )
+                )
 
-            return post_components(request, device, consoleports, consoleports_templates, ConsolePort,
-                                   ConsolePortTemplate, unified_consoleports, unified_consoleport_templates,
-                                   "console ports")
+            return post_components(
+                request,
+                device,
+                consoleports,
+                consoleports_templates,
+                ConsolePort,
+                ConsolePortTemplate,
+                unified_consoleports,
+                unified_consoleport_templates,
+                "console ports",
+            )
 
 
-class ConsoleServerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
+class ConsoleServerPortComparisonView(
+    LoginRequiredMixin, PermissionRequiredMixin, View
+):
     """Comparison of console server ports between a device and a device type and beautiful visualization"""
-    permission_required = ("dcim.view_consoleserverport", "dcim.add_consoleserverport", "dcim.change_consoleserverport",
-                           "dcim.delete_consoleserverport")
+
+    permission_required = (
+        "dcim.view_consoleserverport",
+        "dcim.add_consoleserverport",
+        "dcim.change_consoleserverport",
+        "dcim.delete_consoleserverport",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         consoleserverports = device.consoleserverports.all()
-        consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(device_type=device.device_type)
+        consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_consoleserverports = [
-            ConsoleServerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display()) for i in
-            consoleserverports]
+            ConsoleServerPortComparison(
+                i.id, i.name, i.label, i.description, i.type, i.get_type_display()
+            )
+            for i in consoleserverports
+        ]
         unified_consoleserverport_templates = [
-            ConsoleServerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                        is_template=True) for i in consoleserverports_templates]
+            ConsoleServerPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                is_template=True,
+            )
+            for i in consoleserverports_templates
+        ]
 
-        return get_components(request, device, consoleserverports, unified_consoleserverports,
-                              unified_consoleserverport_templates, "Console server ports")
+        return get_components(
+            request,
+            device,
+            consoleserverports,
+            unified_consoleserverports,
+            unified_consoleserverport_templates,
+            "Console server ports",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -207,57 +429,121 @@ class ConsoleServerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixi
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             consoleserverports = device.consoleserverports.all()
-            consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(device_type=device.device_type)
+            consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of console server ports to rename
             fix_name_components = filter(
-                lambda i: str(i.id) in request.POST.getlist("fix_name"), consoleserverports
+                lambda i: str(i.id) in request.POST.getlist("fix_name"),
+                consoleserverports,
             )
 
             unified_consoleserverport_templates = [
-                ConsoleServerPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                            is_template=True) for i in consoleserverports_templates]
+                ConsoleServerPortComparison(
+                    i.id,
+                    i.name,
+                    i.label,
+                    i.description,
+                    i.type,
+                    i.get_type_display(),
+                    is_template=True,
+                )
+                for i in consoleserverports_templates
+            ]
 
             unified_consoleserverports = []
 
             for component in fix_name_components:
-                unified_consoleserverports.append((component, ConsoleServerPortComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description,
-                    component.type,
-                    component.get_type_display())))
+                unified_consoleserverports.append(
+                    (
+                        component,
+                        ConsoleServerPortComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                            component.type,
+                            component.get_type_display(),
+                        ),
+                    )
+                )
 
-            return post_components(request, device, consoleserverports, consoleserverports_templates, ConsoleServerPort,
-                                   ConsoleServerPortTemplate, unified_consoleserverports,
-                                   unified_consoleserverport_templates, "console server ports")
+            return post_components(
+                request,
+                device,
+                consoleserverports,
+                consoleserverports_templates,
+                ConsoleServerPort,
+                ConsoleServerPortTemplate,
+                unified_consoleserverports,
+                unified_consoleserverport_templates,
+                "console server ports",
+            )
 
 
 class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of power outlets between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_poweroutlet", "dcim.add_poweroutlet", "dcim.change_poweroutlet", "dcim.delete_poweroutlet")
+        "dcim.view_poweroutlet",
+        "dcim.add_poweroutlet",
+        "dcim.change_poweroutlet",
+        "dcim.delete_poweroutlet",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         poweroutlets = device.poweroutlets.all()
-        poweroutlets_templates = PowerOutletTemplate.objects.filter(device_type=device.device_type)
+        poweroutlets_templates = PowerOutletTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_poweroutlets = [
-            PowerOutletComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                  power_port_name=PowerPort.objects.get(
-                                      id=i.power_port_id).name if i.power_port_id is not None else "",
-                                  feed_leg=i.feed_leg) for i in poweroutlets]
+            PowerOutletComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                power_port_name=(
+                    PowerPort.objects.get(id=i.power_port_id).name
+                    if i.power_port_id is not None
+                    else ""
+                ),
+                feed_leg=i.feed_leg,
+            )
+            for i in poweroutlets
+        ]
         unified_poweroutlet_templates = [
-            PowerOutletComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                  power_port_name=PowerPortTemplate.objects.get(
-                                      id=i.power_port_id).name if i.power_port_id is not None else "",
-                                  feed_leg=i.feed_leg, is_template=True) for i in poweroutlets_templates]
+            PowerOutletComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                power_port_name=(
+                    PowerPortTemplate.objects.get(id=i.power_port_id).name
+                    if i.power_port_id is not None
+                    else ""
+                ),
+                feed_leg=i.feed_leg,
+                is_template=True,
+            )
+            for i in poweroutlets_templates
+        ]
 
-        return get_components(request, device, poweroutlets, unified_poweroutlets, unified_poweroutlet_templates,
-                              "Power outlets")
+        return get_components(
+            request,
+            device,
+            poweroutlets,
+            unified_poweroutlets,
+            unified_poweroutlet_templates,
+            "Power outlets",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -265,7 +551,9 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             poweroutlets = device.poweroutlets.all()
-            poweroutlets_templates = PowerOutletTemplate.objects.filter(device_type=device.device_type)
+            poweroutlets_templates = PowerOutletTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Generating result message
             message = []
@@ -275,7 +563,13 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
 
             remove_from_device = filter(
                 lambda i: i in poweroutlets.values_list("id", flat=True),
-                map(int, filter(lambda x: x.isdigit(), request.POST.getlist("remove_from_device")))
+                map(
+                    int,
+                    filter(
+                        lambda x: x.isdigit(),
+                        request.POST.getlist("remove_from_device"),
+                    ),
+                ),
             )
 
             # Remove selected power outlets from the device and count them
@@ -305,11 +599,18 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             if not mismatch:
                 add_to_device = filter(
                     lambda i: i in poweroutlets_templates.values_list("id", flat=True),
-                    map(int, filter(lambda x: x.isdigit(), request.POST.getlist("add_to_device")))
+                    map(
+                        int,
+                        filter(
+                            lambda x: x.isdigit(), request.POST.getlist("add_to_device")
+                        ),
+                    ),
                 )
 
                 # Add selected component to the device and count them
-                add_to_device_component = PowerOutletTemplate.objects.filter(id__in=add_to_device)
+                add_to_device_component = PowerOutletTemplate.objects.filter(
+                    id__in=add_to_device
+                )
 
                 bulk_create = []
                 updated = 0
@@ -344,29 +645,54 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
                 created = len(PowerOutlet.objects.bulk_create(bulk_create))
 
                 # Getting and validating a list of components to rename
-                fix_name_components = filter(lambda i: str(i.id) in request.POST.getlist("fix_name"), poweroutlets)
+                fix_name_components = filter(
+                    lambda i: str(i.id) in request.POST.getlist("fix_name"),
+                    poweroutlets,
+                )
 
                 # Casting component templates into Unified objects for proper comparison with component for renaming
                 unified_component_templates = [
-                    PowerOutletComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(),
-                                          power_port_name=PowerPortTemplate.objects.get(
-                                              id=i.power_port_id).name if i.power_port_id is not None else "",
-                                          feed_leg=i.feed_leg, is_template=True) for i in poweroutlets_templates]
+                    PowerOutletComparison(
+                        i.id,
+                        i.name,
+                        i.label,
+                        i.description,
+                        i.type,
+                        i.get_type_display(),
+                        power_port_name=(
+                            PowerPortTemplate.objects.get(id=i.power_port_id).name
+                            if i.power_port_id is not None
+                            else ""
+                        ),
+                        feed_leg=i.feed_leg,
+                        is_template=True,
+                    )
+                    for i in poweroutlets_templates
+                ]
 
                 # Rename selected power outlets
                 fixed = 0
                 for component in fix_name_components:
-                    unified_poweroutlet = PowerOutletComparison(component.id, component.name, component.label,
-                                                                component.description, component.type,
-                                                                component.get_type_display(),
-                                                                power_port_name=PowerPort.objects.get(
-                                                                    id=component.power_port_id).name if component.power_port_id is not None else "",
-                                                                feed_leg=component.feed_leg)
+                    unified_poweroutlet = PowerOutletComparison(
+                        component.id,
+                        component.name,
+                        component.label,
+                        component.description,
+                        component.type,
+                        component.get_type_display(),
+                        power_port_name=(
+                            PowerPort.objects.get(id=component.power_port_id).name
+                            if component.power_port_id is not None
+                            else ""
+                        ),
+                        feed_leg=component.feed_leg,
+                    )
 
                     try:
                         # Try to extract a component template with the corresponding name
                         corresponding_template = unified_component_templates[
-                            unified_component_templates.index(unified_poweroutlet)]
+                            unified_component_templates.index(unified_poweroutlet)
+                        ]
                         component.name = corresponding_template.name
                         component.save()
                         fixed += 1
@@ -391,25 +717,59 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
 
 class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of front ports between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_frontport", "dcim.add_frontport", "dcim.change_frontport", "dcim.delete_frontport")
+        "dcim.view_frontport",
+        "dcim.add_frontport",
+        "dcim.change_frontport",
+        "dcim.delete_frontport",
+    )
 
     def get(self, request, device_id):
 
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         frontports = device.frontports.all()
-        frontports_templates = FrontPortTemplate.objects.filter(device_type=device.device_type)
+        frontports_templates = FrontPortTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_frontports = [
-            FrontPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color,
-                                i.rear_port_position) for i in frontports]
+            FrontPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.color,
+                i.rear_port_position,
+            )
+            for i in frontports
+        ]
         unified_frontports_templates = [
-            FrontPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color,
-                                i.rear_port_position, is_template=True) for i in frontports_templates]
+            FrontPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.color,
+                i.rear_port_position,
+                is_template=True,
+            )
+            for i in frontports_templates
+        ]
 
-        return get_components(request, device, frontports, unified_frontports, unified_frontports_templates,
-                              "Front ports")
+        return get_components(
+            request,
+            device,
+            frontports,
+            unified_frontports,
+            unified_frontports_templates,
+            "Front ports",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -417,7 +777,9 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             frontports = device.frontports.all()
-            frontports_templates = FrontPortTemplate.objects.filter(device_type=device.device_type)
+            frontports_templates = FrontPortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Generating result message
             message = []
@@ -427,7 +789,13 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
 
             remove_from_device = filter(
                 lambda i: i in frontports.values_list("id", flat=True),
-                map(int, filter(lambda x: x.isdigit(), request.POST.getlist("remove_from_device")))
+                map(
+                    int,
+                    filter(
+                        lambda x: x.isdigit(),
+                        request.POST.getlist("remove_from_device"),
+                    ),
+                ),
             )
 
             # Remove selected front ports from the device and count them
@@ -457,11 +825,18 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             if not mismatch:
                 add_to_device = filter(
                     lambda i: i in frontports_templates.values_list("id", flat=True),
-                    map(int, filter(lambda x: x.isdigit(), request.POST.getlist("add_to_device")))
+                    map(
+                        int,
+                        filter(
+                            lambda x: x.isdigit(), request.POST.getlist("add_to_device")
+                        ),
+                    ),
                 )
 
                 # Add selected component to the device and count them
-                add_to_device_component = FrontPortTemplate.objects.filter(id__in=add_to_device)
+                add_to_device_component = FrontPortTemplate.objects.filter(
+                    id__in=add_to_device
+                )
 
                 bulk_create = []
                 updated = 0
@@ -496,24 +871,44 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
                 created = len(FrontPort.objects.bulk_create(bulk_create))
 
                 # Getting and validating a list of components to rename
-                fix_name_components = filter(lambda i: str(i.id) in request.POST.getlist("fix_name"), frontports)
+                fix_name_components = filter(
+                    lambda i: str(i.id) in request.POST.getlist("fix_name"), frontports
+                )
 
                 # Casting component templates into Unified objects for proper comparison with component for renaming
                 unified_frontports_templates = [
-                    FrontPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color,
-                                        i.rear_port_position, is_template=True) for i in frontports_templates]
+                    FrontPortComparison(
+                        i.id,
+                        i.name,
+                        i.label,
+                        i.description,
+                        i.type,
+                        i.get_type_display(),
+                        i.color,
+                        i.rear_port_position,
+                        is_template=True,
+                    )
+                    for i in frontports_templates
+                ]
                 # Rename selected front ports
                 fixed = 0
                 for component in fix_name_components:
-                    unified_frontport = FrontPortComparison(component.id, component.name, component.label,
-                                                            component.description, component.type,
-                                                            component.get_type_display(), component.color,
-                                                            component.rear_port_position)
+                    unified_frontport = FrontPortComparison(
+                        component.id,
+                        component.name,
+                        component.label,
+                        component.description,
+                        component.type,
+                        component.get_type_display(),
+                        component.color,
+                        component.rear_port_position,
+                    )
 
                     try:
                         # Try to extract a component template with the corresponding name
                         corresponding_template = unified_frontports_templates[
-                            unified_frontports_templates.index(unified_frontport)]
+                            unified_frontports_templates.index(unified_frontport)
+                        ]
                         component.name = corresponding_template.name
                         component.save()
                         fixed += 1
@@ -538,22 +933,58 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
 
 class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of rear ports between a device and a device type and beautiful visualization"""
-    permission_required = ("dcim.view_rearport", "dcim.add_rearport", "dcim.change_rearport", "dcim.delete_rearport")
+
+    permission_required = (
+        "dcim.view_rearport",
+        "dcim.add_rearport",
+        "dcim.change_rearport",
+        "dcim.delete_rearport",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         rearports = device.rearports.all()
-        rearports_templates = RearPortTemplate.objects.filter(device_type=device.device_type)
+        rearports_templates = RearPortTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
         unified_rearports = [
-            RearPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color, i.positions)
-            for i in rearports]
+            RearPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.color,
+                i.positions,
+            )
+            for i in rearports
+        ]
         unified_rearports_templates = [
-            RearPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color, i.positions,
-                               is_template=True) for i in rearports_templates]
+            RearPortComparison(
+                i.id,
+                i.name,
+                i.label,
+                i.description,
+                i.type,
+                i.get_type_display(),
+                i.color,
+                i.positions,
+                is_template=True,
+            )
+            for i in rearports_templates
+        ]
 
-        return get_components(request, device, rearports, unified_rearports, unified_rearports_templates, "Rear ports")
+        return get_components(
+            request,
+            device,
+            rearports,
+            unified_rearports,
+            unified_rearports_templates,
+            "Rear ports",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -561,7 +992,9 @@ class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             rearports = device.rearports.all()
-            rearports_templates = RearPortTemplate.objects.filter(device_type=device.device_type)
+            rearports_templates = RearPortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of rear ports to rename
             fix_name_components = filter(
@@ -569,52 +1002,105 @@ class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
             )
 
             unified_rearports_templates = [
-                RearPortComparison(i.id, i.name, i.label, i.description, i.type, i.get_type_display(), i.color,
-                                   i.positions, is_template=True) for i in rearports_templates]
+                RearPortComparison(
+                    i.id,
+                    i.name,
+                    i.label,
+                    i.description,
+                    i.type,
+                    i.get_type_display(),
+                    i.color,
+                    i.positions,
+                    is_template=True,
+                )
+                for i in rearports_templates
+            ]
 
             unified_rearports = []
 
             for component in fix_name_components:
-                unified_rearports.append((component, RearPortComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description,
-                    component.type,
-                    component.get_type_display(),
-                    component.color,
-                    component.positions)))
+                unified_rearports.append(
+                    (
+                        component,
+                        RearPortComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                            component.type,
+                            component.get_type_display(),
+                            component.color,
+                            component.positions,
+                        ),
+                    )
+                )
 
-            return post_components(request, device, rearports, rearports_templates, RearPort, RearPortTemplate,
-                                   unified_rearports, unified_rearports_templates, "rear ports")
+            return post_components(
+                request,
+                device,
+                rearports,
+                rearports_templates,
+                RearPort,
+                RearPortTemplate,
+                unified_rearports,
+                unified_rearports_templates,
+                "rear ports",
+            )
 
         form = ComponentComparisonForm(request.POST)
         if form.is_valid():
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             rearports = device.rearports.all()
-            rearports_templates = RearPortTemplate.objects.filter(device_type=device.device_type)
+            rearports_templates = RearPortTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
-            return post_components(request, device, rearports, rearports_templates, RearPort, RearPortTemplate)
+            return post_components(
+                request,
+                device,
+                rearports,
+                rearports_templates,
+                RearPort,
+                RearPortTemplate,
+            )
 
 
 class DeviceBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
     """Comparison of device bays between a device and a device type and beautiful visualization"""
+
     permission_required = (
-    "dcim.view_devicebay", "dcim.add_devicebay", "dcim.change_devicebay", "dcim.delete_devicebay")
+        "dcim.view_devicebay",
+        "dcim.add_devicebay",
+        "dcim.change_devicebay",
+        "dcim.delete_devicebay",
+    )
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         devicebays = device.devicebays.all()
-        devicebays_templates = DeviceBayTemplate.objects.filter(device_type=device.device_type)
+        devicebays_templates = DeviceBayTemplate.objects.filter(
+            device_type=device.device_type
+        )
 
-        unified_devicebays = [DeviceBayComparison(i.id, i.name, i.label, i.description) for i in devicebays]
+        unified_devicebays = [
+            DeviceBayComparison(i.id, i.name, i.label, i.description)
+            for i in devicebays
+        ]
         unified_devicebay_templates = [
-            DeviceBayComparison(i.id, i.name, i.label, i.description, is_template=True) for i in devicebays_templates]
+            DeviceBayComparison(i.id, i.name, i.label, i.description, is_template=True)
+            for i in devicebays_templates
+        ]
 
-        return get_components(request, device, devicebays, unified_devicebays, unified_devicebay_templates,
-                              "Device bays")
+        return get_components(
+            request,
+            device,
+            devicebays,
+            unified_devicebays,
+            unified_devicebay_templates,
+            "Device bays",
+        )
 
     def post(self, request, device_id):
         form = ComponentComparisonForm(request.POST)
@@ -622,7 +1108,9 @@ class DeviceBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             devicebays = device.devicebays.all()
-            devicebays_templates = DeviceBayTemplate.objects.filter(device_type=device.device_type)
+            devicebays_templates = DeviceBayTemplate.objects.filter(
+                device_type=device.device_type
+            )
 
             # Getting and validating a list of devicebays to rename
             fix_name_components = filter(
@@ -630,18 +1118,35 @@ class DeviceBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             )
 
             unified_devicebay_templates = [
-                DeviceBayComparison(i.id, i.name, i.label, i.description, is_template=True) for i in
-                devicebays_templates]
+                DeviceBayComparison(
+                    i.id, i.name, i.label, i.description, is_template=True
+                )
+                for i in devicebays_templates
+            ]
 
             unified_devicebays = []
 
             for component in fix_name_components:
-                unified_devicebays.append((component, DeviceBayComparison(
-                    component.id,
-                    component.name,
-                    component.label,
-                    component.description
-                )))
+                unified_devicebays.append(
+                    (
+                        component,
+                        DeviceBayComparison(
+                            component.id,
+                            component.name,
+                            component.label,
+                            component.description,
+                        ),
+                    )
+                )
 
-            return post_components(request, device, devicebays, devicebays_templates, DeviceBay, DeviceBayTemplate,
-                                   unified_devicebays, unified_devicebay_templates, "device bays")
+            return post_components(
+                request,
+                device,
+                devicebays,
+                devicebays_templates,
+                DeviceBay,
+                DeviceBayTemplate,
+                unified_devicebays,
+                unified_devicebay_templates,
+                "device bays",
+            )

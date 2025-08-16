@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.conf import settings
 
-config = settings.PLUGINS_CONFIG['netbox_interface_synchronization']
+config = settings.PLUGINS_CONFIG["netbox_interface_synchronization"]
 
 
 def split(s):
@@ -22,7 +22,14 @@ def human_sorted(iterable: Iterable):
     return sorted(iterable, key=natural_keys)
 
 
-def get_components(request, device, components, unified_components, unified_component_templates, component_type):
+def get_components(
+    request,
+    device,
+    components,
+    unified_components,
+    unified_component_templates,
+    component_type,
+):
     # List of components and components templates presented in the unified format
     overall_powers = list(set(unified_component_templates + unified_components))
     overall_powers.sort(key=lambda o: natural_keys(o.name))
@@ -59,7 +66,15 @@ def get_components(request, device, components, unified_components, unified_comp
 
 
 def post_components(
-    request, device, components, component_templates, ObjectType, ObjectTemplateType, unified_component, unified_component_templates, component_type
+    request,
+    device,
+    components,
+    component_templates,
+    ObjectType,
+    ObjectTemplateType,
+    unified_component,
+    unified_component_templates,
+    component_type,
 ):
     # Manually validating components and component templates lists
     add_to_device = filter(
