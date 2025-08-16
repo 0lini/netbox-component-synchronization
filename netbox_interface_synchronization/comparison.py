@@ -223,3 +223,29 @@ class DeviceBayComparison(ParentComparison):
     """A unified way to represent the device bay and device bay template"""
 
     is_template: bool = False
+
+
+@dataclass(frozen=True, eq=False)
+class ModuleBayComparison(ParentComparison):
+    """A unified way to represent the module bay and module bay template"""
+
+    position: str
+    is_template: bool = False
+
+    def __eq__(self, other):
+        eq = (
+            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
+            and (self.label == other.label)
+            and (self.position == other.position)
+        )
+
+        if config["compare_description"]:
+            eq = eq and (self.description == other.description)
+
+        return eq
+
+    def __hash__(self):
+        return hash((self.name.lower().replace(" ", "")))
+
+    def __str__(self):
+        return f"{super().__str__()}\nPosition: {self.position}"
