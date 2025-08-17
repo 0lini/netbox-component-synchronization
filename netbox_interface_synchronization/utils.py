@@ -96,6 +96,7 @@ def post_components(
     add_to_device_component = ObjectTemplateType.objects.filter(id__in=add_to_device)
 
     bulk_create = []
+    created = 0
     updated = 0
     keys_to_avoid = ["id"]
 
@@ -117,12 +118,17 @@ def post_components(
                 setattr(tmp, k, i[k])
 
         if to_create:
-            bulk_create.append(tmp)
+            # Bulk create does not work for creating ModuleBay
+            if ObjectType.__name__ == "ModuleBay":
+                tmp.save()
+                created += 1
+            else:
+                bulk_create.append(tmp)
         else:
             tmp.save()
             updated += 1
 
-    created = len(ObjectType.objects.bulk_create(bulk_create))
+    created += len(ObjectType.objects.bulk_create(bulk_create))
 
     # Rename selected components
     fixed = 0
