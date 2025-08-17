@@ -1169,6 +1169,8 @@ class ModuleBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         modulebays = device.modulebays.all()
+        # Filter for module bays with level 0 to avoid nested module bays
+        modulebays = modulebays.filter(level=0)
         modulebays_templates = ModuleBayTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -1197,6 +1199,8 @@ class ModuleBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             modulebays = device.modulebays.all()
+            # Filter for module bays with level 0 to avoid nested module bays
+            modulebays = modulebays.filter(level=0)
             modulebays_templates = ModuleBayTemplate.objects.filter(
                 device_type=device.device_type
             )
