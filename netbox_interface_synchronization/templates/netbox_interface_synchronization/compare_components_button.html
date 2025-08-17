@@ -53,17 +53,17 @@
                 </a>
             </li>
         {% endif %}
-        {% if perms.dcim.add_devicebay %}
-            <li>
-                <a class="dropdown-item" href="{% url 'plugins:netbox_interface_synchronization:devicebay_comparison' device_id=device.id %}">
-                    Device Bays
-                </a>
-            </li>
-        {% endif %}
         {% if perms.dcim.add_modulebay %}
             <li>
                 <a class="dropdown-item" href="{% url 'plugins:netbox_interface_synchronization:modulebay_comparison' device_id=device.id %}">
                     Module Bays
+                </a>
+            </li>
+        {% endif %}
+        {% if perms.dcim.add_devicebay %}
+            <li>
+                <a class="dropdown-item" href="{% url 'plugins:netbox_interface_synchronization:devicebay_comparison' device_id=device.id %}">
+                    Device Bays
                 </a>
             </li>
         {% endif %}
