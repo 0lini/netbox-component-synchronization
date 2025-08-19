@@ -56,7 +56,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
         interfaces = device.vc_interfaces()
         interfaces = interfaces.exclude(module_id__isnull=False)
-        interfaces = interfaces.exclude(type__in=config["exclude_virtual_interfaces"])
+        interfaces = interfaces.exclude(type__in=config["exclude_interface_type_list"])
         interface_templates = InterfaceTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -102,7 +102,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
             interfaces = device.vc_interfaces()
             interfaces = interfaces.exclude(module_id__isnull=False)
-            interfaces = interfaces.exclude(type__in=config["exclude_virtual_interfaces"])
+            interfaces = interfaces.exclude(type__in=config["exclude_interface_type_list"])
             interface_templates = InterfaceTemplate.objects.filter(
                 device_type=device.device_type
             )
