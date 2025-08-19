@@ -15,6 +15,7 @@ class Config(PluginConfig):
         # If compare is true, description will also be synced to device
         # Otherwise not.
         "compare_description": True,
+        "exclude_interface_type_list": ["lag", "bridge",],
     }
 
 
