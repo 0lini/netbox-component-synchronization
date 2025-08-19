@@ -59,7 +59,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         interfaces = interfaces.exclude(type__in=config["exclude_interface_type_list"])
         interface_templates = InterfaceTemplate.objects.filter(
             device_type=device.device_type
-        )
+        ).exclude(type__in=config["exclude_interface_type_list"])
 
         unified_interfaces = [
             InterfaceComparison(
@@ -105,7 +105,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             interfaces = interfaces.exclude(type__in=config["exclude_interface_type_list"])
             interface_templates = InterfaceTemplate.objects.filter(
                 device_type=device.device_type
-            )
+            ).exclude(type__in=config["exclude_interface_type_list"])
 
             # Getting and validating a list of interfaces to rename
             fix_name_components = filter(
