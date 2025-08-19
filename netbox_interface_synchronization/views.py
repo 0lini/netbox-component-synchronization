@@ -55,6 +55,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
         interfaces = device.vc_interfaces()
+        interfaces = interfaces.filter(module_id__isnull=True)
         if config["exclude_virtual_interfaces"]:
             interfaces = list(filter(lambda i: not i.is_virtual, interfaces))
         interface_templates = InterfaceTemplate.objects.filter(
@@ -101,6 +102,7 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         if form.is_valid():
             device = get_object_or_404(Device.objects.filter(id=device_id))
             interfaces = device.vc_interfaces()
+            interfaces = interfaces.filter(module_id__isnull=True)
             if config["exclude_virtual_interfaces"]:
                 interfaces = interfaces.exclude(type__in=["virtual", "lag"])
             interface_templates = InterfaceTemplate.objects.filter(
@@ -171,6 +173,7 @@ class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         powerports = device.powerports.all()
+        powerports =powerports.filter(module_id__isnull=True)
         powerports_templates = PowerPortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -218,6 +221,7 @@ class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             powerports = device.powerports.all()
+            powerports = powerports.filter(module_id__isnull=True)
             powerports_templates = PowerPortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -288,6 +292,7 @@ class ConsolePortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         consoleports = device.consoleports.all()
+        consoleports = consoleports.filter(module_id__isnull=True)
         consoleports_templates = ConsolePortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -326,6 +331,7 @@ class ConsolePortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             consoleports = device.consoleports.all()
+            consoleports = consoleports.filter(module_id__isnull=True)
             consoleports_templates = ConsolePortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -394,6 +400,7 @@ class ConsoleServerPortComparisonView(
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         consoleserverports = device.consoleserverports.all()
+        consoleserverports = consoleserverports.filter(module_id__isnull=True)
         consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -432,6 +439,7 @@ class ConsoleServerPortComparisonView(
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             consoleserverports = device.consoleserverports.all()
+            consoleserverports = consoleserverports.filter(module_id__isnull=True)
             consoleserverports_templates = ConsoleServerPortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -499,6 +507,7 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         poweroutlets = device.poweroutlets.all()
+        poweroutlets = poweroutlets.filter(module_id__isnull=True)
         poweroutlets_templates = PowerOutletTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -554,6 +563,7 @@ class PowerOutletComparisonView(LoginRequiredMixin, PermissionRequiredMixin, Vie
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             poweroutlets = device.poweroutlets.all()
+            poweroutlets = poweroutlets.filter(module_id__isnull=True)
             poweroutlets_templates = PowerOutletTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -733,6 +743,7 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         frontports = device.frontports.all()
+        frontports = frontports.filter(module_id__isnull=True)
         frontports_templates = FrontPortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -780,6 +791,7 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             frontports = device.frontports.all()
+            frontports = frontports.filter(module_id__isnull=True)
             frontports_templates = FrontPortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -948,6 +960,7 @@ class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         rearports = device.rearports.all()
+        rearports = rearports.filter(module_id__isnull=True)
         rearports_templates = RearPortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -995,6 +1008,7 @@ class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             rearports = device.rearports.all()
+            rearports = rearports.filter(module_id__isnull=True)
             rearports_templates = RearPortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -1055,6 +1069,7 @@ class RearPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             rearports = device.rearports.all()
+            rearports = rearports.filter(module_id__isnull=True)
             rearports_templates = RearPortTemplate.objects.filter(
                 device_type=device.device_type
             )
@@ -1083,6 +1098,7 @@ class DeviceBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         devicebays = device.devicebays.all()
+        devicebays = devicebays.filter(module_id__isnull=True)
         devicebays_templates = DeviceBayTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -1111,6 +1127,7 @@ class DeviceBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
 
             devicebays = device.devicebays.all()
+            devicebays = devicebays.filter(module_id__isnull=True)
             devicebays_templates = DeviceBayTemplate.objects.filter(
                 device_type=device.device_type
             )
