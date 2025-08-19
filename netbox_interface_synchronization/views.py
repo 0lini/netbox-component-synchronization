@@ -102,7 +102,9 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             device = get_object_or_404(Device.objects.filter(id=device_id))
             interfaces = device.vc_interfaces()
             interfaces = interfaces.exclude(module_id__isnull=False)
-            interfaces = interfaces.exclude(type__in=config["exclude_interface_type_list"])
+            interfaces = interfaces.exclude(
+                type__in=config["exclude_interface_type_list"]
+            )
             interface_templates = InterfaceTemplate.objects.filter(
                 device_type=device.device_type
             ).exclude(type__in=config["exclude_interface_type_list"])
@@ -171,7 +173,7 @@ class PowerPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         powerports = device.powerports.all()
-        powerports =powerports.exclude(module_id__isnull=False)
+        powerports = powerports.exclude(module_id__isnull=False)
         powerports_templates = PowerPortTemplate.objects.filter(
             device_type=device.device_type
         )
@@ -737,7 +739,6 @@ class FrontPortComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
     )
 
     def get(self, request, device_id):
-
         device = get_object_or_404(Device.objects.filter(id=device_id))
 
         frontports = device.frontports.all()
@@ -1195,7 +1196,9 @@ class ModuleBayComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
             for i in modulebays
         ]
         unified_modulebay_templates = [
-            ModuleBayComparison(i.id, i.name, i.label, i.description, i.position, is_template=True)
+            ModuleBayComparison(
+                i.id, i.name, i.label, i.description, i.position, is_template=True
+            )
             for i in modulebays_templates
         ]
 
