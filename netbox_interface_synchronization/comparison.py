@@ -62,7 +62,11 @@ class ParentTypedComparison(ParentComparison):
 class InterfaceComparison(ParentTypedComparison):
     """A unified way to represent the interface and interface template"""
 
-    mgmt_only: bool
+    enabled: bool
+    mgmt_only: bool = False
+    poe_mode: str = ""
+    poe_type: str = ""
+    rf_role: str = ""
     is_template: bool = False
 
     def __eq__(self, other):
@@ -70,7 +74,11 @@ class InterfaceComparison(ParentTypedComparison):
             (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
             and (self.label == other.label)
             and (self.type == other.type)
+            and (self.enabled == other.enabled)
             and (self.mgmt_only == other.mgmt_only)
+            and (self.poe_mode == other.poe_mode)
+            and (self.poe_type == other.poe_type)
+            and (self.rf_role == other.rf_role)
         )
 
         if config["compare_description"]:
@@ -82,7 +90,7 @@ class InterfaceComparison(ParentTypedComparison):
         return hash((self.name.lower().replace(" ", ""), self.type))
 
     def __str__(self):
-        return f"{super().__str__()}\nManagement only: {self.mgmt_only}"
+        return f"{super().__str__()}\nManagement only: {self.mgmt_only}\nEnabled: {self.enabled}\nPoE mode: {self.poe_mode}\nPoE type: {self.poe_type}\nWireless role: {self.rf_role}"
 
 
 @dataclass(frozen=True)

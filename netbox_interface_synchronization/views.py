@@ -69,7 +69,11 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
                 i.description,
                 i.type,
                 i.get_type_display(),
+                i.enabled,
                 i.mgmt_only,
+                i.poe_mode,
+                i.poe_type,
+                i.rf_role,
             )
             for i in interfaces
         ]
@@ -81,7 +85,11 @@ class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View)
                 i.description,
                 i.type,
                 i.get_type_display(),
+                i.enabled,
                 i.mgmt_only,
+                i.poe_mode,
+                i.poe_type,
+                i.rf_role,
                 is_template=True,
             )
             for i in interface_templates
