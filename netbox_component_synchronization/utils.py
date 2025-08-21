@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.conf import settings
 
-config = settings.PLUGINS_CONFIG["netbox_interface_synchronization"]
+config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
 
 
 def split(s):
@@ -54,7 +54,7 @@ def get_components(
     comparison_items = list(zip(comparison_templates, comparison_components))
     return render(
         request,
-        "netbox_interface_synchronization/components_comparison.html",
+        "netbox_component_synchronization/components_comparison.html",
         {
             "component_type": component_type,
             "comparison_items": comparison_items,

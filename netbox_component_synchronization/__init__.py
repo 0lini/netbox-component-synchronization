@@ -2,9 +2,9 @@ from netbox.plugins import PluginConfig
 
 
 class Config(PluginConfig):
-    name = "netbox_interface_synchronization"
-    verbose_name = "NetBox Interface Synchronization"
-    description = "Syncing existing interface names and types with those from a new device type in NetBox"
+    name = "netbox_component_synchronization"
+    verbose_name = "NetBox Component Synchronization"
+    description = "Easily synchronize device components with their device types through an accessible UI."
     version = "5.0.0"
     author = "Keith Knowles and Bastian Leicht"
     author_email = "mkknowles@outlook.com"

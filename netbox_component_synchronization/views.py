@@ -39,7 +39,7 @@ from .comparison import (
 )
 from .forms import ComponentComparisonForm
 
-config = settings.PLUGINS_CONFIG["netbox_interface_synchronization"]
+config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
 
 
 class InterfaceComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):

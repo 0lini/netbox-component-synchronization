@@ -10,7 +10,7 @@ class DeviceViewExtension(PluginTemplateExtension):
         """Implements a compare interfaces button at the top of the page"""
         obj = self.context["object"]
         return self.render(
-            "netbox_interface_synchronization/compare_components_button.html",
+            "netbox_component_synchronization/compare_components_button.html",
             extra_context={"device": obj},
         )
 
@@ -24,7 +24,7 @@ class DeviceViewExtension(PluginTemplateExtension):
         )
 
         return self.render(
-            "netbox_interface_synchronization/number_of_interfaces_panel.html",
+            "netbox_component_synchronization/number_of_interfaces_panel.html",
             extra_context={
                 "interfaces": interfaces,
                 "real_interfaces": real_interfaces,

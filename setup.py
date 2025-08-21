@@ -4,7 +4,7 @@ with open('README.md', encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='netbox-interface-synchronization',
+    name='netbox_component_synchronization',
     version='5.0.0',
     description='Syncing existing components with the components from a device type template in NetBox 4+',
     long_description=long_description,
@@ -12,7 +12,7 @@ setup(
     author='Keith Knowles and Bastian Leicht',
     author_email='mkknowles@outlook.com',
     license='GPL-3.0',
-    packages=["netbox_interface_synchronization"],
-    package_data={"netbox_interface_synchronization": ["templates/netbox_interface_synchronization/*.html"]},
+    packages=["netbox_component_synchronization"],
+    package_data={"netbox_component_synchronization": ["templates/netbox_component_synchronization/*.html"]},
     zip_safe=False
 )

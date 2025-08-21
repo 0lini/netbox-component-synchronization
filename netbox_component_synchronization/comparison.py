@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from django.conf import settings
 
-config = settings.PLUGINS_CONFIG["netbox_interface_synchronization"]
+config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
 
 
 @dataclass(frozen=True)
