@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from django.conf import settings
 
 config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
@@ -12,21 +12,29 @@ class ParentComparison:
     name: str
     label: str
     description: str
+    is_template: bool = field(default=False, kw_only=True)
 
-    def __eq__(self, other):
-        # Ignore some fields when comparing; ignore component name case and whitespaces
-        eq = (
-            self.name.lower().replace(" ", "") == other.name.lower().replace(" ", "")
-        ) and (self.label == other.label)
+    def _compare_attributes(self, other, extra_attrs=()) -> bool:
+        if not hasattr(other, "name") or not hasattr(other, "label"):
+            return NotImplemented
+
+        eq = (self.name == other.name) and (self.label == other.label)
+
+        for attr in extra_attrs:
+            if not hasattr(other, attr):
+                return NotImplemented
+            eq = eq and (getattr(self, attr) == getattr(other, attr))
 
         if config["compare_description"]:
             eq = eq and (self.description == other.description)
 
         return eq
 
+    def __eq__(self, other):
+        return self._compare_attributes(other, ())
+
     def __hash__(self):
-        # Ignore some fields when hashing; ignore component name case and whitespaces
-        return hash(self.name.lower().replace(" ", ""))
+        return hash(self.name)
 
     def __str__(self):
         return f"Label: {self.label}\nDescription: {self.description}"
@@ -40,19 +48,10 @@ class ParentTypedComparison(ParentComparison):
     type_display: str
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-        )
-
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
+        return self._compare_attributes(other, ("type",))
 
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", ""), self.type))
+        return hash((self.name, self.type))
 
     def __str__(self):
         return f"{super().__str__()}\nType: {self.type_display}"
@@ -67,27 +66,15 @@ class InterfaceComparison(ParentTypedComparison):
     poe_mode: str = ""
     poe_type: str = ""
     rf_role: str = ""
-    is_template: bool = False
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-            and (self.enabled == other.enabled)
-            and (self.mgmt_only == other.mgmt_only)
-            and (self.poe_mode == other.poe_mode)
-            and (self.poe_type == other.poe_type)
-            and (self.rf_role == other.rf_role)
+        return self._compare_attributes(
+            other,
+            ("type", "enabled", "mgmt_only", "poe_mode", "poe_type", "rf_role"),
         )
 
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
-
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", ""), self.type))
+        return super().__hash__()
 
     def __str__(self):
         return f"{super().__str__()}\nManagement only: {self.mgmt_only}\nEnabled: {self.enabled}\nPoE mode: {self.poe_mode}\nPoE type: {self.poe_type}\nWireless role: {self.rf_role}"
@@ -98,29 +85,16 @@ class FrontPortComparison(ParentTypedComparison):
     """A unified way to represent the front port and front port template"""
 
     color: str
-    # rear_port_id: int
     rear_port_position: int
-    is_template: bool = False
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-            and (self.color == other.color)
-            and (self.rear_port_position == other.rear_port_position)
-        )
-
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
+        return self._compare_attributes(other, ("type", "color", "rear_port_position"))
 
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", ""), self.type))
+        return super().__hash__()
 
     def __str__(self):
-        return f"{super().__str__()}\nColor: {self.color}\nPosition: {self.rear_port_position}"
+        return f"{super().__str__()}\nColor: {self.color}\nRear port position: {self.rear_port_position}"
 
 
 @dataclass(frozen=True)
@@ -129,24 +103,12 @@ class RearPortComparison(ParentTypedComparison):
 
     color: str
     positions: int
-    is_template: bool = False
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-            and (self.color == other.color)
-            and (self.positions == other.positions)
-        )
-
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
+        return self._compare_attributes(other, ("type", "color", "positions"))
 
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", ""), self.type))
+        return super().__hash__()
 
     def __str__(self):
         return f"{super().__str__()}\nColor: {self.color}\nPositions: {self.positions}"
@@ -156,14 +118,14 @@ class RearPortComparison(ParentTypedComparison):
 class ConsolePortComparison(ParentTypedComparison):
     """A unified way to represent the consoleport and consoleport template"""
 
-    is_template: bool = False
+    pass
 
 
 @dataclass(frozen=True, eq=False)
 class ConsoleServerPortComparison(ParentTypedComparison):
     """A unified way to represent the consoleserverport and consoleserverport template"""
 
-    is_template: bool = False
+    pass
 
 
 @dataclass(frozen=True)
@@ -172,24 +134,14 @@ class PowerPortComparison(ParentTypedComparison):
 
     maximum_draw: str
     allocated_draw: str
-    is_template: bool = False
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-            and (self.maximum_draw == other.maximum_draw)
-            and (self.allocated_draw == other.allocated_draw)
+        return self._compare_attributes(
+            other, ("type", "maximum_draw", "allocated_draw")
         )
 
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
-
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", ""), self.type))
+        return super().__hash__()
 
     def __str__(self):
         return f"{super().__str__()}\nMaximum draw: {self.maximum_draw}\nAllocated draw: {self.allocated_draw}"
@@ -199,28 +151,14 @@ class PowerPortComparison(ParentTypedComparison):
 class PowerOutletComparison(ParentTypedComparison):
     """A unified way to represent the power outlet and power outlet template"""
 
-    power_port_name: str = ""
-    feed_leg: str = ""
-    is_template: bool = False
+    power_port_name: str
+    feed_leg: str
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.type == other.type)
-            and (self.power_port_name == other.power_port_name)
-            and (self.feed_leg == other.feed_leg)
-        )
-
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
+        return self._compare_attributes(other, ("type", "power_port_name", "feed_leg"))
 
     def __hash__(self):
-        return hash(
-            (self.name.lower().replace(" ", ""), self.type, self.power_port_name)
-        )
+        return hash((self.name, self.type, self.power_port_name))
 
     def __str__(self):
         return f"{super().__str__()}\nPower port name: {self.power_port_name}\nFeed leg: {self.feed_leg}"
@@ -230,7 +168,7 @@ class PowerOutletComparison(ParentTypedComparison):
 class DeviceBayComparison(ParentComparison):
     """A unified way to represent the device bay and device bay template"""
 
-    is_template: bool = False
+    pass
 
 
 @dataclass(frozen=True, eq=False)
@@ -238,22 +176,12 @@ class ModuleBayComparison(ParentComparison):
     """A unified way to represent the module bay and module bay template"""
 
     position: str
-    is_template: bool = False
 
     def __eq__(self, other):
-        eq = (
-            (self.name.lower().replace(" ", "") == other.name.lower().replace(" ", ""))
-            and (self.label == other.label)
-            and (self.position == other.position)
-        )
-
-        if config["compare_description"]:
-            eq = eq and (self.description == other.description)
-
-        return eq
+        return self._compare_attributes(other, ("position",))
 
     def __hash__(self):
-        return hash((self.name.lower().replace(" ", "")))
+        return super().__hash__()
 
     def __str__(self):
         return f"{super().__str__()}\nPosition: {self.position}"
