@@ -24,7 +24,7 @@ pip install .
 To enable to plugin, add the plugin's name to the `PLUGINS` list in `configuration.py` (it's usually located in `/opt/netbox/netbox/netbox/`) like so:
 ```
 PLUGINS = [
-    'netbox_interface_synchronization'
+    'netbox_component_synchronization'
 ]
 ```
 Don't forget to restart NetBox:
@@ -40,11 +40,25 @@ Mark the required actions with the checkboxes and click "Apply".
 If you want to override the default values, configure the `PLUGINS_CONFIG` in your `configuration.py`:
 ```
 PLUGINS_CONFIG = {
-    'netbox_interface_synchronization': {
-        'exclude_virtual_interfaces': True
+    'netbox_component_synchronization': {
+        'exclude_interface_type_list': [],
+        'enable_auto_discovery': True,
+        'compare_description': True
     }
 }
 ```
 | Setting | Default value | Description |
 | --- | --- | --- |
-| exclude_virtual_interfaces | `True` | Exclude virtual interfaces (VLANs, LAGs) from comparison
+| exclude_interface_type_list | `[]` | List of interface types to exclude from comparison |
+| enable_auto_discovery | `True` | Enable automatic discovery of component types from NetBox |
+| compare_description | `True` | Include description field in component comparison |
+
+### Auto-Discovery Feature
+The plugin now automatically discovers available component types from NetBox, eliminating the need to manually add new component types to the synchronization system. This feature:
+
+- **Automatically detects** all component models in NetBox that have corresponding template models
+- **Dynamically generates** URL patterns and view classes for each discovered component type
+- **Analyzes model fields** to determine which attributes should be synchronized
+- **Creates comparison classes** automatically for new component types
+
+When new component types are added to NetBox in future versions, they will automatically become available for synchronization without requiring plugin updates.

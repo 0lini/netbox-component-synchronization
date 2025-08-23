@@ -1,6 +1,7 @@
 """
 Component registry to reduce code duplication and complexity in views.
 This registry defines all component types and their configurations in one place.
+Now supports automatic discovery of components from NetBox.
 """
 from dataclasses import dataclass
 from typing import Dict, Callable, Any, Optional
@@ -238,6 +239,9 @@ COMPONENT_REGISTRY: Dict[str, ComponentConfig] = {
 
 def get_component_config(component_type: str) -> ComponentConfig:
     """Get component configuration by type"""
+    # First try to populate from auto-discovery
+    _populate_registry_from_discovery()
+    
     if component_type not in COMPONENT_REGISTRY:
         raise ValueError(f"Unknown component type: {component_type}")
     return COMPONENT_REGISTRY[component_type]
@@ -269,6 +273,71 @@ def create_component_factory(config: ComponentConfig) -> Callable:
         return config.comparison_class(**args)
     
     return factory
+
+
+# Auto-discovery integration
+def _should_use_auto_discovery():
+    """Check if auto-discovery should be used based on configuration"""
+    try:
+        from django.conf import settings
+        plugin_config = settings.PLUGINS_CONFIG.get("netbox_component_synchronization", {})
+        return plugin_config.get("enable_auto_discovery", True)
+    except Exception:
+        # Default to True if we can't read config
+        return True
+
+
+def _populate_registry_from_discovery():
+    """Populate the component registry from auto-discovery"""
+    if not _should_use_auto_discovery():
+        return
+        
+    try:
+        from .auto_discovery import discover_components
+        discovered = discover_components()
+        
+        # Create ComponentConfig objects from discovered components
+        for component_name, discovered_component in discovered.items():
+            if component_name not in COMPONENT_REGISTRY:
+                # Find the comparison class
+                comparison_class = None
+                comparison_class_name = f"{discovered_component.model.__name__}Comparison"
+                
+                # Try to import the comparison class dynamically
+                try:
+                    from . import comparison
+                    comparison_class = getattr(comparison, comparison_class_name, None)
+                except (ImportError, AttributeError):
+                    pass
+                
+                if not comparison_class:
+                    # Create a basic comparison class if none exists
+                    from .comparison import ParentComparison
+                    comparison_class = type(comparison_class_name, (ParentComparison,), {})
+                
+                if comparison_class:
+                    COMPONENT_REGISTRY[component_name] = ComponentConfig(
+                        component_label=discovered_component.component_label,
+                        model=discovered_component.model,
+                        template_model=discovered_component.template_model,
+                        comparison_class=comparison_class,
+                        permissions=discovered_component.permissions,
+                        factory_fields=discovered_component.factory_fields,
+                        special_fields=discovered_component.special_fields,
+                        custom_queryset_filter=discovered_component.custom_queryset_filter
+                    )
+    except Exception as e:
+        # If auto-discovery fails, continue with static registry
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Auto-discovery failed, using static registry: {e}")
+
+
+def get_all_component_types():
+    """Get all available component types, including auto-discovered ones"""
+    # Ensure auto-discovered components are included
+    _populate_registry_from_discovery()
+    return list(COMPONENT_REGISTRY.keys())
 
 
 def get_component_queryset(device: Device, component_type: str):
