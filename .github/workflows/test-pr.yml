@@ -1,0 +1,124 @@
+name: Test PR Against Latest NetBox
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        netbox-version: ['4.0', '4.1', 'latest']
+        
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: netbox
+          POSTGRES_USER: netbox
+          POSTGRES_DB: netbox
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libxml2-dev libxslt1-dev libffi-dev libpq-dev libssl-dev zlib1g-dev
+        
+    - name: Determine NetBox version
+      id: netbox-version
+      run: |
+        if [ "${{ matrix.netbox-version }}" = "latest" ]; then
+          NETBOX_VER=$(curl -s https://api.github.com/repos/netbox-community/netbox/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+        else
+          NETBOX_VER="${{ matrix.netbox-version }}"
+        fi
+        echo "version=$NETBOX_VER" >> $GITHUB_OUTPUT
+        echo "Using NetBox version: $NETBOX_VER"
+        
+    - name: Install NetBox
+      run: |
+        pip install --upgrade pip
+        pip install netbox==${{ steps.netbox-version.outputs.version }}
+        
+    - name: Install plugin dependencies
+      run: |
+        pip install -e .
+        pip install -r .github/test-requirements.txt
+        
+    - name: Configure NetBox
+      run: |
+        mkdir -p /tmp/netbox-config
+        cat > /tmp/netbox-config/configuration.py << EOF
+        import os
+        
+        ALLOWED_HOSTS = ['*']
+        DATABASE = {
+            'NAME': 'netbox',
+            'USER': 'netbox', 
+            'PASSWORD': 'netbox',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
+        REDIS = {
+            'tasks': {
+                'HOST': 'localhost',
+                'PORT': 6379,
+                'DATABASE': 0,
+            },
+            'caching': {
+                'HOST': 'localhost', 
+                'PORT': 6379,
+                'DATABASE': 1,
+            }
+        }
+        SECRET_KEY = 'test-secret-key-for-ci-only'
+        PLUGINS = ['netbox_component_synchronization']
+        DEBUG = True
+        EOF
+        
+    - name: Run NetBox migrations
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        netbox-manage migrate
+        
+    - name: Run universal tests
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        python -m pytest tests/ -v --tb=short
+        
+    - name: Run component synchronization tests
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        python -m pytest test_refactoring.py -v --tb=short
+        python test_validation.py

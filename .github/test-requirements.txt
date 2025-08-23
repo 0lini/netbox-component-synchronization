@@ -1,0 +1,20 @@
+# Test dependencies for NetBox Component Synchronization plugin
+pytest>=7.0.0
+pytest-django>=4.5.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-xdist>=3.0.0
+
+# Code quality and formatting
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+pylint>=2.17.0
+
+# Additional testing utilities
+factory-boy>=3.2.0
+coverage>=7.0.0
+codecov>=2.1.12
+
+# Django testing
+django-extensions>=3.2.0

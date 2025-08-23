@@ -1,0 +1,170 @@
+name: Test NetBox Compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      netbox_version:
+        description: 'NetBox version to test against'
+        required: true
+        type: string
+      create_pr:
+        description: 'Create PR with updates if tests pass'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-compatibility:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: netbox
+          POSTGRES_USER: netbox
+          POSTGRES_DB: netbox
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libxml2-dev libxslt1-dev libffi-dev libpq-dev libssl-dev zlib1g-dev
+        
+    - name: Install NetBox ${{ inputs.netbox_version }}
+      run: |
+        pip install --upgrade pip
+        pip install netbox==${{ inputs.netbox_version }}
+        
+    - name: Install plugin and test dependencies
+      run: |
+        pip install -e .
+        pip install pytest pytest-django pytest-cov
+        
+    - name: Configure NetBox for testing
+      run: |
+        mkdir -p /tmp/netbox-config
+        cat > /tmp/netbox-config/configuration.py << EOF
+        import os
+        
+        ALLOWED_HOSTS = ['*']
+        DATABASE = {
+            'NAME': 'netbox',
+            'USER': 'netbox', 
+            'PASSWORD': 'netbox',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
+        REDIS = {
+            'tasks': {
+                'HOST': 'localhost',
+                'PORT': 6379,
+                'DATABASE': 0,
+            },
+            'caching': {
+                'HOST': 'localhost', 
+                'PORT': 6379,
+                'DATABASE': 1,
+            }
+        }
+        SECRET_KEY = 'test-secret-key-for-ci-only'
+        PLUGINS = ['netbox_component_synchronization']
+        DEBUG = True
+        TESTING = True
+        EOF
+        
+    - name: Run NetBox migrations
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        netbox-manage migrate
+        
+    - name: Run compatibility tests
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        python -m pytest tests/ -v --tb=short --cov=netbox_component_synchronization
+        python test_validation.py
+        
+    - name: Test plugin functionality
+      env:
+        NETBOX_CONFIGURATION: /tmp/netbox-config/configuration.py
+      run: |
+        python -c "
+        import os
+        import django
+        from django.conf import settings
+        os.environ['DJANGO_SETTINGS_MODULE'] = 'netbox.settings'
+        django.setup()
+        
+        # Test component registry
+        from netbox_component_synchronization.component_registry import COMPONENT_REGISTRY
+        print(f'Component registry has {len(COMPONENT_REGISTRY)} component types')
+        
+        # Test imports
+        from netbox_component_synchronization import views, utils, forms
+        print('All major modules import successfully')
+        
+        print('NetBox ${{ inputs.netbox_version }} compatibility test passed!')
+        "
+        
+    - name: Update compatibility documentation
+      if: inputs.create_pr == true
+      run: |
+        # Update README.md with new tested version
+        sed -i 's/Tested with NetBox versions [0-9]\+\.[0-9]\+\.[0-9]\+/Tested with NetBox versions ${{ inputs.netbox_version }}/' README.md
+        
+        # Update setup.py version if this is a new major/minor release
+        CURRENT_VERSION=$(grep "version=" setup.py | grep -o "[0-9]\+\.[0-9]\+\.[0-9]\+")
+        echo "Current plugin version: $CURRENT_VERSION"
+        
+    - name: Create compatibility update PR
+      if: inputs.create_pr == true
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update NetBox compatibility to ${{ inputs.netbox_version }}"
+        title: "NetBox ${{ inputs.netbox_version }} Compatibility Update"
+        body: |
+          ## NetBox ${{ inputs.netbox_version }} Compatibility Update
+          
+          This PR updates the plugin compatibility for NetBox ${{ inputs.netbox_version }}.
+          
+          ### Changes:
+          - ✅ Tested plugin functionality with NetBox ${{ inputs.netbox_version }}
+          - 📝 Updated README.md compatibility information
+          - 🔄 All tests pass with new NetBox version
+          
+          ### Test Results:
+          - Component registry: ✅ Working
+          - Views and forms: ✅ Working  
+          - Database migrations: ✅ Working
+          - Plugin installation: ✅ Working
+          
+          This PR was automatically created by the NetBox compatibility testing workflow.
+        branch: netbox-${{ inputs.netbox_version }}-compatibility
+        delete-branch: true

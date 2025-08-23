@@ -117,6 +117,18 @@ dmypy.json
 ehthumbs.db
 Thumbs.db
 
-# Test files (keep out of commits)
-test_validation.py
-test_auto_discovery.py
+# Test artifacts and coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.tox/
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+coverage.xml
+
+# Keep test files but exclude temporary test data
+/tmp/test_*
+test_results/

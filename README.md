@@ -48,6 +48,53 @@ PLUGINS_CONFIG = {
     }
 }
 ```
+
+## Testing and Development
+
+### Automated Testing
+
+This plugin includes comprehensive automated testing and CI/CD workflows:
+
+- **PR Testing**: Automatically tests pull requests against multiple NetBox versions
+- **Code Formatting**: Automatically formats code using Black and isort  
+- **NetBox Compatibility**: Monitors new NetBox releases and tests compatibility
+- **Universal Tests**: Test suite works across different environments
+
+### Running Tests Locally
+
+The plugin includes a universal test runner that works in different environments:
+
+```bash
+# Run all tests (auto-detects best method)
+python run_tests.py
+
+# Run only validation tests (works without NetBox)
+python run_tests.py --test-type validation
+
+# Run with verbose output
+python run_tests.py --verbose
+
+# Force specific test runner
+python run_tests.py --pytest
+python run_tests.py --unittest
+```
+
+### Test Categories
+
+1. **Validation Tests**: Basic import and module structure tests (no NetBox required)
+2. **Unit Tests**: Component registry, async utilities, and core functionality
+3. **Integration Tests**: Full workflow testing with NetBox models
+
+### Continuous Integration
+
+[![Tests](https://github.com/0lini/netbox-component-synchronization/workflows/Test%20PR%20Against%20Latest%20NetBox/badge.svg)](https://github.com/0lini/netbox-component-synchronization/actions)
+[![Code Quality](https://github.com/0lini/netbox-component-synchronization/workflows/Code%20Formatting/badge.svg)](https://github.com/0lini/netbox-component-synchronization/actions)
+
+The plugin automatically:
+- Tests against NetBox 4.0, 4.1, and latest versions
+- Runs code quality checks (Black, isort, flake8)
+- Monitors for new NetBox releases and tests compatibility
+- Creates PRs for NetBox compatibility updates
 | Setting | Default value | Description |
 | --- | --- | --- |
 | exclude_interface_type_list | `[]` | List of interface types to exclude from comparison |

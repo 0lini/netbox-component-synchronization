@@ -1,0 +1,108 @@
+name: Check NetBox Releases
+
+on:
+  schedule:
+    # Run daily at 9 AM UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  check-releases:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get latest NetBox release
+      id: netbox-release
+      run: |
+        LATEST_RELEASE=$(curl -s https://api.github.com/repos/netbox-community/netbox/releases/latest | jq -r '.tag_name')
+        LATEST_VERSION=${LATEST_RELEASE#v}
+        echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        echo "latest_release=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+        echo "Latest NetBox release: $LATEST_RELEASE"
+        
+    - name: Check if we need to test against new version
+      id: version-check
+      run: |
+        # Read current tested version from README
+        CURRENT_VERSION=$(grep -o "NetBox versions [0-9]\+\.[0-9]\+\.[0-9]\+" README.md | grep -o "[0-9]\+\.[0-9]\+\.[0-9]\+" || echo "4.3.1")
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current tested version: $CURRENT_VERSION"
+        echo "Latest version: ${{ steps.netbox-release.outputs.latest_version }}"
+        
+        # Compare versions (basic comparison)
+        if [ "$CURRENT_VERSION" != "${{ steps.netbox-release.outputs.latest_version }}" ]; then
+          echo "needs_testing=true" >> $GITHUB_OUTPUT
+          echo "New NetBox version detected!"
+        else
+          echo "needs_testing=false" >> $GITHUB_OUTPUT
+          echo "Already testing latest version"
+        fi
+        
+    - name: Create issue for new NetBox version
+      if: steps.version-check.outputs.needs_testing == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = `Test compatibility with NetBox ${{ steps.netbox-release.outputs.latest_version }}`;
+          const body = `
+          ## New NetBox Release Detected
+          
+          A new NetBox version has been released: **${{ steps.netbox-release.outputs.latest_release }}**
+          
+          Current tested version: ${{ steps.version-check.outputs.current_version }}
+          New version: ${{ steps.netbox-release.outputs.latest_version }}
+          
+          ### Action Items:
+          - [ ] Test plugin compatibility with NetBox ${{ steps.netbox-release.outputs.latest_version }}
+          - [ ] Update compatibility documentation in README.md
+          - [ ] Run full test suite against new version
+          - [ ] Update setup.py if needed
+          - [ ] Create release notes if breaking changes exist
+          
+          ### Automated Test Status:
+          This issue was created automatically by the NetBox release monitoring workflow.
+          The CI/CD pipeline will automatically test this plugin against the new NetBox version.
+          
+          **Release Notes:** https://github.com/netbox-community/netbox/releases/tag/${{ steps.netbox-release.outputs.latest_release }}
+          `;
+          
+          // Check if issue already exists
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: 'netbox-compatibility'
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes(`NetBox ${{ steps.netbox-release.outputs.latest_version }}`)
+          );
+          
+          if (!existingIssue) {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['netbox-compatibility', 'enhancement', 'automated']
+            });
+          }
+          
+    - name: Trigger compatibility test workflow
+      if: steps.version-check.outputs.needs_testing == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'test-netbox-compatibility.yml',
+            ref: 'main',
+            inputs: {
+              netbox_version: '${{ steps.netbox-release.outputs.latest_version }}',
+              create_pr: 'true'
+            }
+          });
