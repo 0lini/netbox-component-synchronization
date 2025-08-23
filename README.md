@@ -43,6 +43,7 @@ PLUGINS_CONFIG = {
     'netbox_component_synchronization': {
         'exclude_interface_type_list': [],
         'enable_auto_discovery': True,
+        'exclude_auto_discovery_types': [],
         'compare_description': True
     }
 }
@@ -51,6 +52,7 @@ PLUGINS_CONFIG = {
 | --- | --- | --- |
 | exclude_interface_type_list | `[]` | List of interface types to exclude from comparison |
 | enable_auto_discovery | `True` | Enable automatic discovery of component types from NetBox |
+| exclude_auto_discovery_types | `[]` | List of component types to exclude from auto-discovery |
 | compare_description | `True` | Include description field in component comparison |
 
 ### Auto-Discovery Feature
@@ -62,3 +64,29 @@ The plugin now automatically discovers available component types from NetBox, el
 - **Creates comparison classes** automatically for new component types
 
 When new component types are added to NetBox in future versions, they will automatically become available for synchronization without requiring plugin updates.
+
+#### Debugging Auto-Discovery
+You can inspect discovered components using the management command:
+```bash
+# Show summary of all discovered components
+python manage.py inspect_components
+
+# Show detailed information
+python manage.py inspect_components --detailed
+
+# Show details for a specific component
+python manage.py inspect_components --component interface
+```
+
+#### Troubleshooting
+If auto-discovery isn't working as expected:
+
+1. **Check configuration**: Ensure `enable_auto_discovery` is `True`
+2. **Check exclusions**: Verify the component isn't in `exclude_auto_discovery_types`
+3. **Check logs**: Look for warning/error messages in NetBox logs
+4. **Use debug utilities**: Import and run debug functions from the plugin
+
+```python
+from netbox_component_synchronization.debug_utils import debug_component_discovery
+debug_component_discovery()
+```

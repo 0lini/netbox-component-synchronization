@@ -279,9 +279,8 @@ def create_component_factory(config: ComponentConfig) -> Callable:
 def _should_use_auto_discovery():
     """Check if auto-discovery should be used based on configuration"""
     try:
-        from django.conf import settings
-        plugin_config = settings.PLUGINS_CONFIG.get("netbox_component_synchronization", {})
-        return plugin_config.get("enable_auto_discovery", True)
+        from .discovery_config import is_auto_discovery_enabled
+        return is_auto_discovery_enabled()
     except Exception:
         # Default to True if we can't read config
         return True

@@ -4,10 +4,15 @@ This module automatically detects available component types from NetBox
 and generates the necessary configuration for synchronization.
 """
 import inspect
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional, Type, Any
 from django.db import models
 from django.apps import apps
+
+from .discovery_config import config
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,9 +58,13 @@ class ComponentDiscovery:
         'link_peers', 'connected_endpoints', 'mark_connected'
     ]
     
+    # Maximum number of components to discover (safety limit)
+    MAX_COMPONENTS = 50
+    
     def __init__(self):
         self.dcim_app = None
         self._discovered_components = {}
+        self._discovery_in_progress = False
         
     def _get_dcim_app(self):
         """Get the dcim app instance"""
@@ -200,40 +209,78 @@ class ComponentDiscovery:
         """
         if self._discovered_components:
             return self._discovered_components
+        
+        if self._discovery_in_progress:
+            logger.warning("Discovery already in progress, returning empty dict to prevent recursion")
+            return {}
             
-        dcim_app = self._get_dcim_app()
+        if not config.enabled:
+            logger.info("Auto-discovery is disabled in configuration")
+            return {}
+            
+        self._discovery_in_progress = True
+        
+        try:
+            dcim_app = self._get_dcim_app()
+        except RuntimeError as e:
+            logger.error(f"Failed to get DCIM app: {e}")
+            self._discovery_in_progress = False
+            return {}
+            
         discovered = {}
+        processed_count = 0
         
         # Iterate through all models in the dcim app
         for model in dcim_app.get_models():
-            if self._is_component_model(model):
-                component_name = model.__name__.lower()
-                template_model = self._get_template_model(model)
+            if processed_count >= self.MAX_COMPONENTS:
+                logger.warning(f"Reached maximum component limit ({self.MAX_COMPONENTS}), stopping discovery")
+                break
                 
-                # Skip if no template model found
-                if not template_model:
-                    continue
-                
-                factory_fields = self._analyze_model_fields(model)
-                permissions = self._generate_permissions(model)
-                component_label = self._generate_component_label(model)
-                special_fields = self._generate_special_fields(model)
-                
-                # Set custom queryset filter for interface
-                custom_filter = 'exclude_interface_type_list' if component_name == 'interface' else None
-                
-                discovered[component_name] = DiscoveredComponent(
-                    name=component_name,
-                    model=model,
-                    template_model=template_model,
-                    component_label=component_label,
-                    factory_fields=factory_fields,
-                    permissions=permissions,
-                    special_fields=special_fields,
-                    custom_queryset_filter=custom_filter
-                )
+            try:
+                if self._is_component_model(model):
+                    component_name = model.__name__.lower()
+                    
+                    # Check if component should be excluded
+                    if config.is_component_excluded(component_name):
+                        logger.debug(f"Excluding component '{component_name}' per configuration")
+                        continue
+                    
+                    template_model = self._get_template_model(model)
+                    
+                    # Skip if no template model found
+                    if not template_model:
+                        logger.debug(f"No template model found for {model.__name__}, skipping")
+                        continue
+                    
+                    factory_fields = self._analyze_model_fields(model)
+                    permissions = self._generate_permissions(model)
+                    component_label = self._generate_component_label(model)
+                    special_fields = self._generate_special_fields(model)
+                    
+                    # Set custom queryset filter for interface
+                    custom_filter = 'exclude_interface_type_list' if component_name == 'interface' else None
+                    
+                    discovered[component_name] = DiscoveredComponent(
+                        name=component_name,
+                        model=model,
+                        template_model=template_model,
+                        component_label=component_label,
+                        factory_fields=factory_fields,
+                        permissions=permissions,
+                        special_fields=special_fields,
+                        custom_queryset_filter=custom_filter
+                    )
+                    
+                    logger.debug(f"Discovered component: {component_name}")
+                    processed_count += 1
+                    
+            except Exception as e:
+                logger.warning(f"Error processing model {model.__name__}: {e}")
+                continue
         
         self._discovered_components = discovered
+        self._discovery_in_progress = False
+        logger.info(f"Auto-discovery completed: found {len(discovered)} component types")
         return discovered
     
     def get_component_names(self) -> List[str]:

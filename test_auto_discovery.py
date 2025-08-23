@@ -188,5 +188,71 @@ class UrlGenerationTests(TestCase):
         self.assertEqual(len(patterns), 2)
 
 
+class IntegrationTests(TestCase):
+    """Integration tests for the complete auto-discovery flow"""
+    
+    def setUp(self):
+        if not DJANGO_AVAILABLE:
+            self.skipTest("Django not available")
+    
+    @patch('netbox_component_synchronization.auto_discovery.apps')
+    @patch('netbox_component_synchronization.component_registry.discover_components')
+    def test_complete_autodiscovery_flow(self, mock_discover, mock_apps):
+        """Test the complete flow from discovery to URL generation"""
+        from netbox_component_synchronization.auto_discovery import DiscoveredComponent
+        from netbox_component_synchronization.component_registry import get_all_component_types
+        from netbox_component_synchronization.urls import create_component_url_patterns
+        
+        # Mock discovered component
+        mock_model = Mock()
+        mock_model.__name__ = 'TestPort'
+        
+        mock_template = Mock()
+        mock_template.__name__ = 'TestPortTemplate'
+        
+        mock_discovered = DiscoveredComponent(
+            name='testport',
+            model=mock_model,
+            template_model=mock_template,
+            component_label='Test ports',
+            factory_fields=('id', 'name', 'type'),
+            permissions=('dcim.view_testport', 'dcim.add_testport'),
+        )
+        
+        mock_discover.return_value = {'testport': mock_discovered}
+        
+        # Test that the component gets included in the registry
+        component_types = get_all_component_types()
+        self.assertIn('testport', component_types)
+        
+        # Test URL pattern generation (will use mocks)
+        with patch('netbox_component_synchronization.urls.views') as mock_views:
+            mock_views.create_component_view = Mock(return_value=Mock())
+            
+            patterns = create_component_url_patterns()
+            
+            # Should have created patterns for all components including the new one
+            self.assertIsInstance(patterns, list)
+            
+            # Check that views were created for discovered components
+            if patterns:  # Only check if patterns were generated
+                mock_views.create_component_view.assert_called()
+    
+    def test_configuration_integration(self):
+        """Test that configuration settings are properly integrated"""
+        from netbox_component_synchronization.discovery_config import AutoDiscoveryConfig
+        
+        config = AutoDiscoveryConfig()
+        
+        # Test default values
+        self.assertIsInstance(config.enabled, bool)
+        self.assertIsInstance(config.excluded_types, list)
+        self.assertIsInstance(config.compare_description, bool)
+        
+        # Test exclusion check
+        result = config.is_component_excluded('testcomponent')
+        self.assertIsInstance(result, bool)
+
+
 if __name__ == '__main__':
     unittest.main()

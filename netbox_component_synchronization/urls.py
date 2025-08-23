@@ -13,9 +13,8 @@ def create_component_url_patterns():
     
     # Check if auto-discovery is enabled
     try:
-        from django.conf import settings
-        plugin_config = settings.PLUGINS_CONFIG.get("netbox_component_synchronization", {})
-        use_auto_discovery = plugin_config.get("enable_auto_discovery", True)
+        from .discovery_config import is_auto_discovery_enabled
+        use_auto_discovery = is_auto_discovery_enabled()
     except Exception:
         use_auto_discovery = True
     

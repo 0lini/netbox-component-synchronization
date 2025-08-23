@@ -116,3 +116,7 @@ dmypy.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Test files (keep out of commits)
+test_validation.py
+test_auto_discovery.py
