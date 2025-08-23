@@ -1,378 +1,178 @@
-from typing import Iterable, Callable
-from django.shortcuts import get_object_or_404, redirect
+"""
+Simplified and refactored views using component registry and async processing.
+This dramatically reduces code duplication and complexity.
+"""
+import asyncio
+from typing import Dict, Any
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import View
-from dcim.models import (
-    Device,
-    Interface,
-    InterfaceTemplate,
-    PowerPort,
-    PowerPortTemplate,
-    ConsolePort,
-    ConsolePortTemplate,
-    ConsoleServerPort,
-    ConsoleServerPortTemplate,
-    DeviceBay,
-    DeviceBayTemplate,
-    FrontPort,
-    FrontPortTemplate,
-    PowerOutlet,
-    PowerOutletTemplate,
-    RearPort,
-    RearPortTemplate,
-    ModuleBay,
-    ModuleBayTemplate,
-)
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.conf import settings
 from django.contrib import messages
+from dcim.models import Device
+from asgiref.sync import sync_to_async
 
-from .utils import get_components, post_components
-from .comparison import (
-    FrontPortComparison,
-    PowerPortComparison,
-    PowerOutletComparison,
-    InterfaceComparison,
-    ConsolePortComparison,
-    ConsoleServerPortComparison,
-    DeviceBayComparison,
-    RearPortComparison,
-    ModuleBayComparison,
+from .component_registry import (
+    get_component_config, 
+    create_component_factory,
+    get_component_queryset,
+    COMPONENT_REGISTRY
+)
+from .async_utils import (
+    process_component_comparison,
+    create_success_message,
+    build_comparison_data,
+    parse_form_ids,
+    filter_valid_ids
 )
 from .forms import ComponentComparisonForm
 
-config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
 
-
-def _parse_fix_ids(request, key: str = "fix_name") -> set[int]:
-    return {int(x) for x in request.POST.getlist(key) if x.isdigit()}
-
-
-def _fix_name_components_from_qs(qs: Iterable, fix_ids: set[int]):
-    try:
-        return qs.filter(id__in=fix_ids)
-    except Exception:
-        return [c for c in qs if c.id in fix_ids]
-
-
-def _build_unified_list(qs: Iterable, factory: Callable, *, is_template: bool = False):
+def _build_unified_list(qs, factory, *, is_template: bool = False):
+    """Build unified list using the factory function"""
     if is_template:
         return [factory(i, is_template=True) for i in qs]
     return [factory(i) for i in qs]
 
 
-class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
-    permission_required = ()
-    component_label = "components"
-    Model = None
-    TemplateModel = None
-    ComparisonClass = None
-
-    def get_components_qs(self, device: Device):
-        raise NotImplementedError
-
-    def get_templates_qs(self, device: Device):
-        return self.TemplateModel.objects.filter(device_type=device.device_type)
-
-    def _factory(self, instance, is_template: bool = False):
-        """Default trivial factory (expect subclasses to override)."""
-        raise NotImplementedError
-
+class GenericComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
+    """
+    Generic view that handles all component types using the component registry.
+    This replaces the 9 individual component view classes with a single configurable one.
+    """
+    component_type = None  # To be set by subclasses
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.component_type:
+            self.config = get_component_config(self.component_type)
+            self.factory = create_component_factory(self.config)
+    
+    @property 
+    def permission_required(self):
+        return self.config.permissions if hasattr(self, 'config') else ()
+    
+    async def get_async(self, request, device_id):
+        """Async version of GET request handling"""
+        device = await sync_to_async(get_object_or_404)(Device.objects.filter(id=device_id))
+        
+        # Get querysets
+        components_qs = get_component_queryset(device, self.component_type)
+        templates_qs = self.config.template_model.objects.filter(device_type=device.device_type)
+        
+        # Build unified lists
+        unified_components = _build_unified_list(components_qs, self.factory)
+        unified_templates = _build_unified_list(templates_qs, self.factory, is_template=True)
+        
+        # Build comparison data
+        comparison_items = await build_comparison_data(unified_components, unified_templates)
+        
+        context = {
+            "component_type": self.config.component_label,
+            "comparison_items": comparison_items,
+            "templates_count": len(unified_templates),
+            "components_count": len(components_qs),
+            "device": device,
+        }
+        
+        return render(request, "netbox_component_synchronization/components_comparison.html", context)
+    
     def get(self, request, device_id):
-        device = get_object_or_404(Device.objects.filter(id=device_id))
-        components_qs = self.get_components_qs(device)
-        templates_qs = self.get_templates_qs(device)
-
-        unified_components = _build_unified_list(components_qs, self._factory)
-        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
-
-        return get_components(
-            request,
-            device,
-            components_qs,
-            unified_components,
-            unified_templates,
-            self.component_label,
-        )
-
-    def post(self, request, device_id):
+        """Synchronous wrapper for async GET handling"""
+        return asyncio.run(self.get_async(request, device_id))
+    
+    async def post_async(self, request, device_id):
+        """Async version of POST request handling"""
         form = ComponentComparisonForm(request.POST)
         if not form.is_valid():
             messages.error(request, "Invalid form submission.")
             return redirect(request.path)
-
-        device = get_object_or_404(Device.objects.filter(id=device_id))
-        components_qs = self.get_components_qs(device)
-        templates_qs = self.get_templates_qs(device)
-
-        fix_ids = _parse_fix_ids(request)
-        fix_name_components = _fix_name_components_from_qs(components_qs, fix_ids)
-
-        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
-
-        unified_components = [(c, self._factory(c)) for c in fix_name_components]
-
-        return post_components(
-            request,
-            device,
-            components_qs,
-            templates_qs,
-            self.Model,
-            self.TemplateModel,
-            unified_components,
-            unified_templates,
-            self.component_label,
+            
+        device = await sync_to_async(get_object_or_404)(Device.objects.filter(id=device_id))
+        
+        # Get querysets
+        components_qs = get_component_queryset(device, self.component_type)
+        templates_qs = self.config.template_model.objects.filter(device_type=device.device_type)
+        
+        # Parse form data
+        add_ids = parse_form_ids(request, "add_to_device")
+        remove_ids = parse_form_ids(request, "remove_from_device")
+        fix_ids = parse_form_ids(request, "fix_name")
+        
+        # Filter to valid IDs only
+        add_ids = filter_valid_ids(add_ids, templates_qs)
+        remove_ids = filter_valid_ids(remove_ids, components_qs)
+        fix_ids = filter_valid_ids(fix_ids, components_qs)
+        
+        # Build unified components for name fixing
+        fix_components = [c for c in components_qs if c.id in fix_ids] if fix_ids else []
+        unified_fix_components = [(c, self.factory(c)) for c in fix_components]
+        unified_templates = _build_unified_list(templates_qs, self.factory, is_template=True)
+        
+        # Process the comparison operations
+        stats = await process_component_comparison(
+            device=device,
+            components_qs=components_qs,
+            unified_components=unified_fix_components,
+            unified_templates=unified_templates,
+            object_type=self.config.model,
+            object_template_type=self.config.template_model,
+            component_type=self.config.component_label,
+            add_ids=add_ids,
+            remove_ids=remove_ids
         )
+        
+        # Create success message
+        success_msg = create_success_message(stats, self.config.component_label)
+        messages.success(request, success_msg)
+        
+        return redirect(request.path)
+    
+    def post(self, request, device_id):
+        """Synchronous wrapper for async POST handling"""
+        return asyncio.run(self.post_async(request, device_id))
 
 
-class InterfaceComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_interface",
-        "dcim.add_interface",
-        "dcim.change_interface",
-        "dcim.delete_interface",
-    )
-    component_label = "Interfaces"
-    Model = Interface
-    TemplateModel = InterfaceTemplate
-    ComparisonClass = InterfaceComparison
-
-    def get_components_qs(self, device: Device):
-        qs = device.vc_interfaces().exclude(module_id__isnull=False)
-        return qs.exclude(type__in=config["exclude_interface_type_list"])
-
-    def _factory(self, i, is_template=False):
-        return InterfaceComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.enabled,
-            i.mgmt_only,
-            i.poe_mode,
-            i.poe_type,
-            i.rf_role,
-            is_template=is_template,
-        )
+# Create specific view classes for each component type using the generic view
+class InterfaceComparisonView(GenericComponentComparisonView):
+    component_type = 'interface'
 
 
-class PowerPortComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_powerport",
-        "dcim.add_powerport",
-        "dcim.change_powerport",
-        "dcim.delete_powerport",
-    )
-    component_label = "Power ports"
-    Model = PowerPort
-    TemplateModel = PowerPortTemplate
-    ComparisonClass = PowerPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.powerports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return PowerPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.maximum_draw,
-            i.allocated_draw,
-            is_template=is_template,
-        )
+class PowerPortComparisonView(GenericComponentComparisonView):
+    component_type = 'powerport'
 
 
-class ConsolePortComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_consoleport",
-        "dcim.add_consoleport",
-        "dcim.change_consoleport",
-        "dcim.delete_consoleport",
-    )
-    component_label = "Console ports"
-    Model = ConsolePort
-    TemplateModel = ConsolePortTemplate
-    ComparisonClass = ConsolePortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.consoleports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return ConsolePortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            is_template=is_template,
-        )
+class ConsolePortComparisonView(GenericComponentComparisonView):
+    component_type = 'consoleport'
 
 
-class ConsoleServerPortComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_consoleserverport",
-        "dcim.add_consoleserverport",
-        "dcim.change_consoleserverport",
-        "dcim.delete_consoleserverport",
-    )
-    component_label = "Console server ports"
-    Model = ConsoleServerPort
-    TemplateModel = ConsoleServerPortTemplate
-    ComparisonClass = ConsoleServerPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.consoleserverports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return ConsoleServerPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            is_template=is_template,
-        )
+class ConsoleServerPortComparisonView(GenericComponentComparisonView):
+    component_type = 'consoleserverport'
 
 
-class PowerOutletComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_poweroutlet",
-        "dcim.add_poweroutlet",
-        "dcim.change_poweroutlet",
-        "dcim.delete_poweroutlet",
-    )
-    component_label = "Power outlets"
-    Model = PowerOutlet
-    TemplateModel = PowerOutletTemplate
-    ComparisonClass = PowerOutletComparison
-
-    def get_components_qs(self, device: Device):
-        return device.poweroutlets.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        power_port_name = ""
-        if i.power_port_id is not None:
-            try:
-                if is_template:
-                    power_port_name = PowerPortTemplate.objects.get(id=i.power_port_id).name
-                else:
-                    power_port_name = PowerPort.objects.get(id=i.power_port_id).name
-            except Exception:
-                power_port_name = ""
-        return PowerOutletComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            power_port_name=power_port_name,
-            feed_leg=i.feed_leg,
-            is_template=is_template,
-        )
+class PowerOutletComparisonView(GenericComponentComparisonView):
+    component_type = 'poweroutlet'
 
 
-class FrontPortComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_frontport",
-        "dcim.add_frontport",
-        "dcim.change_frontport",
-        "dcim.delete_frontport",
-    )
-    component_label = "Front ports"
-    Model = FrontPort
-    TemplateModel = FrontPortTemplate
-    ComparisonClass = FrontPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.frontports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return FrontPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.color,
-            i.rear_port_position,
-            is_template=is_template,
-        )
+class FrontPortComparisonView(GenericComponentComparisonView):
+    component_type = 'frontport'
 
 
-class RearPortComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_rearport",
-        "dcim.add_rearport",
-        "dcim.change_rearport",
-        "dcim.delete_rearport",
-    )
-    component_label = "Rear ports"
-    Model = RearPort
-    TemplateModel = RearPortTemplate
-    ComparisonClass = RearPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.rearports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return RearPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.color,
-            i.positions,
-            is_template=is_template,
-        )
+class RearPortComparisonView(GenericComponentComparisonView):
+    component_type = 'rearport'
 
 
-class DeviceBayComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_devicebay",
-        "dcim.add_devicebay",
-        "dcim.change_devicebay",
-        "dcim.delete_devicebay",
-    )
-    component_label = "Device bays"
-    Model = DeviceBay
-    TemplateModel = DeviceBayTemplate
-    ComparisonClass = DeviceBayComparison
-
-    def get_components_qs(self, device: Device):
-        return device.devicebays.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return DeviceBayComparison(
-            i.id, i.name, i.label, i.description, is_template=is_template
-        )
+class DeviceBayComparisonView(GenericComponentComparisonView):
+    component_type = 'devicebay'
 
 
-class ModuleBayComparisonView(BaseComponentComparisonView):
-    permission_required = (
-        "dcim.view_modulebay",
-        "dcim.add_modulebay",
-        "dcim.change_modulebay",
-        "dcim.delete_modulebay",
-    )
-    component_label = "Module bays"
-    Model = ModuleBay
-    TemplateModel = ModuleBayTemplate
-    ComparisonClass = ModuleBayComparison
+class ModuleBayComparisonView(GenericComponentComparisonView):
+    component_type = 'modulebay'
 
-    def get_components_qs(self, device: Device):
-        return device.modulebays.all().filter(level=0)
 
-    def _factory(self, i, is_template=False):
-        return ModuleBayComparison(
-            i.id, i.name, i.label, i.description, i.position, is_template=is_template
-        )
+# For backwards compatibility, keep a factory function to create views dynamically
+def create_component_view(component_type: str) -> type:
+    """Factory function to create a component view class dynamically"""
+    class_name = f"{component_type.title()}ComparisonView"
+    return type(class_name, (GenericComponentComparisonView,), {
+        'component_type': component_type
+    })
