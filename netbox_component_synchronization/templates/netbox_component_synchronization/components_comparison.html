@@ -23,6 +23,39 @@
         caption-side: top;
         color: green;
     }
+    
+    .sync-status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    
+    .sync-status-in-sync { background-color: #28a745; }
+    .sync-status-name-mismatch { background-color: #ffc107; }
+    .sync-status-missing-from-device { background-color: #dc3545; }
+    .sync-status-missing-from-template { background-color: #17a2b8; }
+    
+    .bulk-actions {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .sync-stats {
+        background-color: #e9ecef;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .sync-stats .stat-item {
+        display: inline-block;
+        margin-right: 1rem;
+    }
 </style>
 <script>
 function toggle(event) {
@@ -39,10 +72,79 @@ function uncheck(event) {
     document.getElementById(src.name).checked = false;
   }
 }
+
+function toggleSyncStatus() {
+  var showSyncStatus = document.getElementById('sync-status-toggle').checked;
+  var url = new URL(window.location);
+  url.searchParams.set('show_sync_status', showSyncStatus);
+  window.location.href = url;
+}
+
+function confirmBulkAction(actionName) {
+  return confirm('Are you sure you want to ' + actionName + '? This action cannot be undone.');
+}
 </script>
+
+<!-- Sync Status Toggle -->
+<div class="mb-3">
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="sync-status-toggle" 
+               {% if show_sync_status %}checked{% endif %} onchange="toggleSyncStatus()">
+        <label class="form-check-label" for="sync-status-toggle">
+            Show sync status indicators
+        </label>
+    </div>
+</div>
+
+<!-- Sync Statistics -->
+{% if show_sync_status %}
+<div class="sync-stats">
+    <h6>Sync Status Summary:</h6>
+    <div class="stat-item">
+        <span class="sync-status-indicator sync-status-in-sync"></span>
+        In Sync: {{ sync_stats.in_sync }}
+    </div>
+    <div class="stat-item">
+        <span class="sync-status-indicator sync-status-name-mismatch"></span>
+        Name Mismatch: {{ sync_stats.name_mismatch }}
+    </div>
+    <div class="stat-item">
+        <span class="sync-status-indicator sync-status-missing-from-device"></span>
+        Missing from Device: {{ sync_stats.missing_from_device }}
+    </div>
+    <div class="stat-item">
+        <span class="sync-status-indicator sync-status-missing-from-template"></span>
+        Extra in Device: {{ sync_stats.missing_from_template }}
+    </div>
+</div>
+{% endif %}
 
 <form method="post">
     {% csrf_token %}
+    
+    <!-- Bulk Actions -->
+    <div class="bulk-actions">
+        <h6>Bulk Actions:</h6>
+        <div class="btn-group" role="group" aria-label="Bulk sync actions">
+            <button type="submit" name="bulk_add_missing" value="true" class="btn btn-success btn-sm"
+                    onclick="return confirmBulkAction('add all missing components')">
+                <i class="mdi mdi-plus"></i> Add Missing Components
+            </button>
+            <button type="submit" name="bulk_repair_out_of_sync" value="true" class="btn btn-warning btn-sm"
+                    onclick="return confirmBulkAction('repair out of sync components')">
+                <i class="mdi mdi-wrench"></i> Repair Out of Sync
+            </button>
+            <button type="submit" name="bulk_remove_out_of_sync" value="true" class="btn btn-danger btn-sm"
+                    onclick="return confirmBulkAction('remove out of sync components')">
+                <i class="mdi mdi-delete"></i> Remove Out of Sync
+            </button>
+            <button type="submit" name="bulk_sync_all" value="true" class="btn btn-primary btn-sm"
+                    onclick="return confirmBulkAction('sync all components')">
+                <i class="mdi mdi-sync"></i> Sync All Components
+            </button>
+        </div>
+    </div>
+
     <div class="table-responsive-xl">
         <table class="table table-hover table-bordered">
             {% if templates_count == components_count %}
@@ -89,10 +191,13 @@ function uncheck(event) {
             </tr>
             </thead>
             <tbody>
-            {% for component_template, component in comparison_items %}
+            {% for component_template, component, sync_status in comparison_items %}
                 <tr>
                 {% if component_template %}
                     <th scope="row" {% if not component %}class="table-danger"{% endif %}>
+                        {% if show_sync_status %}
+                            <span class="sync-status-indicator sync-status-{{ sync_status }}"></span>
+                        {% endif %}
                         {% if component and component_template.name != component.name %}
                         <span style="background-color: #eab2b2">{{ component_template.name }}</span>
                         {% else %}
@@ -116,6 +221,9 @@ function uncheck(event) {
 
                 {% if component %}
                     <th scope="row" {% if not component_template %}class="table-success"{% endif %}>
+                        {% if show_sync_status %}
+                            <span class="sync-status-indicator sync-status-{{ sync_status }}"></span>
+                        {% endif %}
                         {% if component_template and component_template.name != component.name %}
                         <span style="background-color: #cde8c2">{{ component.name }}</span>
                         {% else %}
