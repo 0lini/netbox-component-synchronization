@@ -14,12 +14,21 @@ class DeviceComponentListExtension(PluginTemplateExtension):
         device = self.context.get('object')
         request = self.context.get('request')
         
+        # Debug: check if we have the required context
         if not device or not request:
+            return ""
+        
+        # Only show on device detail pages with component subpages
+        if not request.path.startswith('/dcim/devices/') or '/edit' in request.path:
             return ""
         
         # Determine component type from URL
         component_type = self._get_component_type_from_url(request.path)
         if not component_type:
+            return ""
+        
+        # Only show if device has a device type (needed for sync)
+        if not hasattr(device, 'device_type') or not device.device_type:
             return ""
             
         context = {

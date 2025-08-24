@@ -19,6 +19,7 @@ class Config(PluginConfig):
             "bridge",
         ],
     }
+    template_extensions = 'template_content.template_extensions'
 
 
 config = Config
