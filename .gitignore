@@ -1,2 +1,10 @@
 .idea
 .vscode
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary files
+/tmp/
