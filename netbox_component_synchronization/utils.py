@@ -29,6 +29,7 @@ def get_components(
     unified_components,
     unified_component_templates,
     component_type,
+    view_instance=None,
 ):
     # List of components and components templates presented in the unified format
     overall_powers = list(set(unified_component_templates + unified_components))
@@ -82,6 +83,11 @@ def get_components(
     # Check if sync status toggle is requested
     show_sync_status = request.GET.get('show_sync_status', 'false').lower() == 'true'
     
+    # Get permitted actions from view instance
+    permitted_actions = []
+    if view_instance and hasattr(view_instance, 'get_permitted_actions'):
+        permitted_actions = view_instance.get_permitted_actions(request.user)
+    
     return render(
         request,
         "netbox_component_synchronization/components_comparison.html",
@@ -93,6 +99,7 @@ def get_components(
             "device": device,
             "sync_stats": sync_stats,
             "show_sync_status": show_sync_status,
+            "permitted_actions": permitted_actions,
         },
     )
 

@@ -25,6 +25,7 @@ from dcim.models import (
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.conf import settings
 from django.contrib import messages
+from utilities.permissions import get_permission_for_model
 
 from .utils import get_components, post_components
 from .comparison import (
@@ -41,6 +42,36 @@ from .comparison import (
 from .forms import ComponentComparisonForm
 
 config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
+
+
+class ComponentActionsMixin:
+    """
+    Mixin that provides bulk action support for component comparison views.
+    Follows NetBox's ActionsMixin pattern.
+    """
+    actions = {
+        'bulk_add_missing': {'add'},
+        'bulk_repair_out_of_sync': {'change'},
+        'bulk_remove_out_of_sync': {'delete'}, 
+        'bulk_sync_all': {'add', 'change', 'delete'},
+    }
+
+    def get_permitted_actions(self, user, model=None):
+        """
+        Return a tuple of actions for which the given user is permitted to do.
+        """
+        model = model or self.Model
+
+        # Resolve required permissions for each action
+        permitted_actions = []
+        for action in self.actions:
+            required_permissions = [
+                get_permission_for_model(model, name) for name in self.actions.get(action, set())
+            ]
+            if not required_permissions or user.has_perms(required_permissions):
+                permitted_actions.append(action)
+
+        return permitted_actions
 
 
 def _parse_fix_ids(request, key: str = "fix_name") -> set[int]:
@@ -60,7 +91,7 @@ def _build_unified_list(qs: Iterable, factory: Callable, *, is_template: bool = 
     return [factory(i) for i in qs]
 
 
-class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, View):
+class BaseComponentComparisonView(ComponentActionsMixin, LoginRequiredMixin, PermissionRequiredMixin, View):
     permission_required = ()
     component_label = "components"
     Model = None
@@ -92,9 +123,22 @@ class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, V
             unified_components,
             unified_templates,
             self.component_label,
+            view_instance=self,
         )
 
     def post(self, request, device_id):
+        # Check for bulk actions first - redirect to appropriate bulk action view
+        if any(action in request.POST for action in self.actions.keys()):
+            # Determine which bulk action was requested
+            for action in self.actions.keys():
+                if request.POST.get(action):
+                    # Redirect to the bulk action view
+                    from django.urls import reverse
+                    from django.http import HttpResponseRedirect
+                    # For now, we'll handle bulk actions in the same view but could be refactored
+                    return self._handle_bulk_action(request, device_id, action)
+        
+        # Handle individual component actions (existing logic)
         form = ComponentComparisonForm(request.POST)
         if not form.is_valid():
             messages.error(request, "Invalid form submission.")
@@ -119,6 +163,28 @@ class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, V
             self.Model,
             self.TemplateModel,
             unified_components,
+            unified_templates,
+            self.component_label,
+        )
+    
+    def _handle_bulk_action(self, request, device_id, action):
+        """
+        Handle bulk actions by delegating to post_components with the bulk action flag.
+        This maintains existing functionality while following NetBox patterns.
+        """
+        device = get_object_or_404(Device.objects.filter(id=device_id))
+        components_qs = self.get_components_qs(device)
+        templates_qs = self.get_templates_qs(device)
+        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
+        
+        return post_components(
+            request,
+            device,
+            components_qs,
+            templates_qs,
+            self.Model,
+            self.TemplateModel,
+            [],  # No individual components for bulk actions
             unified_templates,
             self.component_label,
         )

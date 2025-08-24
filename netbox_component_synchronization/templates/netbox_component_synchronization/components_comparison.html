@@ -123,27 +123,37 @@ function confirmBulkAction(actionName) {
     {% csrf_token %}
     
     <!-- Bulk Actions -->
+    {% if permitted_actions %}
     <div class="bulk-actions">
         <h6>Bulk Actions:</h6>
         <div class="btn-group" role="group" aria-label="Bulk sync actions">
+            {% if 'bulk_add_missing' in permitted_actions %}
             <button type="submit" name="bulk_add_missing" value="true" class="btn btn-success btn-sm"
                     onclick="return confirmBulkAction('add all missing components')">
                 <i class="mdi mdi-plus"></i> Add Missing Components
             </button>
+            {% endif %}
+            {% if 'bulk_repair_out_of_sync' in permitted_actions %}
             <button type="submit" name="bulk_repair_out_of_sync" value="true" class="btn btn-warning btn-sm"
                     onclick="return confirmBulkAction('repair out of sync components')">
                 <i class="mdi mdi-wrench"></i> Repair Out of Sync
             </button>
+            {% endif %}
+            {% if 'bulk_remove_out_of_sync' in permitted_actions %}
             <button type="submit" name="bulk_remove_out_of_sync" value="true" class="btn btn-danger btn-sm"
                     onclick="return confirmBulkAction('remove out of sync components')">
                 <i class="mdi mdi-delete"></i> Remove Out of Sync
             </button>
+            {% endif %}
+            {% if 'bulk_sync_all' in permitted_actions %}
             <button type="submit" name="bulk_sync_all" value="true" class="btn btn-primary btn-sm"
                     onclick="return confirmBulkAction('sync all components')">
                 <i class="mdi mdi-sync"></i> Sync All Components
             </button>
+            {% endif %}
         </div>
     </div>
+    {% endif %}
 
     <div class="table-responsive-xl">
         <table class="table table-hover table-bordered">
