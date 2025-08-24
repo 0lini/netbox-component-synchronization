@@ -5,160 +5,52 @@ from django.conf import settings
 config = settings.PLUGINS_CONFIG.get("netbox_component_synchronization", {})
 
 
-class ComponentListExtension(PluginTemplateExtension):
-    """Base template extension for component list views"""
+class DeviceComponentListExtension(PluginTemplateExtension):
+    """Template extension for device component list views"""
+    model = "dcim.device"
     
-    def get_sync_context(self, component_type):
-        """Get sync context for the component type"""
+    def buttons(self):
+        """Add bulk sync buttons to device component list views"""
         device = self.context.get('object')
-        if not device:
-            return {}
+        request = self.context.get('request')
+        
+        if not device or not request:
+            return ""
+        
+        # Determine component type from URL
+        component_type = self._get_component_type_from_url(request.path)
+        if not component_type:
+            return ""
             
-        return {
+        context = {
             'device': device,
             'component_type': component_type,
             'sync_enabled': True,
         }
-
-
-class InterfaceListExtension(ComponentListExtension):
-    model = "dcim.interface"
-    
-    def buttons(self):
-        """Add bulk sync buttons to interface list view"""
-        context = self.get_sync_context('interfaces')
-        if not context.get('sync_enabled'):
-            return ""
-            
+        
         return self.render(
             "netbox_component_synchronization/bulk_sync_buttons.html",
             extra_context=context
         )
-
-
-class PowerPortListExtension(ComponentListExtension):
-    model = "dcim.powerport"
     
-    def buttons(self):
-        """Add bulk sync buttons to power port list view"""
-        context = self.get_sync_context('power-ports')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class ConsolePortListExtension(ComponentListExtension):
-    model = "dcim.consoleport"
-    
-    def buttons(self):
-        """Add bulk sync buttons to console port list view"""
-        context = self.get_sync_context('console-ports')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class ConsoleServerPortListExtension(ComponentListExtension):
-    model = "dcim.consoleserverport"
-    
-    def buttons(self):
-        """Add bulk sync buttons to console server port list view"""
-        context = self.get_sync_context('console-server-ports')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class PowerOutletListExtension(ComponentListExtension):
-    model = "dcim.poweroutlet"
-    
-    def buttons(self):
-        """Add bulk sync buttons to power outlet list view"""
-        context = self.get_sync_context('power-outlets')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class FrontPortListExtension(ComponentListExtension):
-    model = "dcim.frontport"
-    
-    def buttons(self):
-        """Add bulk sync buttons to front port list view"""
-        context = self.get_sync_context('front-ports')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class RearPortListExtension(ComponentListExtension):
-    model = "dcim.rearport"
-    
-    def buttons(self):
-        """Add bulk sync buttons to rear port list view"""
-        context = self.get_sync_context('rear-ports')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class DeviceBayListExtension(ComponentListExtension):
-    model = "dcim.devicebay"
-    
-    def buttons(self):
-        """Add bulk sync buttons to device bay list view"""
-        context = self.get_sync_context('device-bays')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class ModuleBayListExtension(ComponentListExtension):
-    model = "dcim.modulebay"
-    
-    def buttons(self):
-        """Add bulk sync buttons to module bay list view"""
-        context = self.get_sync_context('module-bays')
-        if not context.get('sync_enabled'):
-            return ""
-            
-        return self.render(
-            "netbox_component_synchronization/bulk_sync_buttons.html",
-            extra_context=context
-        )
-
-
-class DeviceViewExtension(PluginTemplateExtension):
-    model = "dcim.device"
-    models = [model]
+    def _get_component_type_from_url(self, path):
+        """Extract component type from URL path"""
+        component_mappings = {
+            '/interfaces/': 'interfaces',
+            '/power-ports/': 'power-ports', 
+            '/console-ports/': 'console-ports',
+            '/console-server-ports/': 'console-server-ports',
+            '/power-outlets/': 'power-outlets',
+            '/front-ports/': 'front-ports',
+            '/rear-ports/': 'rear-ports',
+            '/device-bays/': 'device-bays',
+            '/module-bays/': 'module-bays',
+        }
+        
+        for url_pattern, component_type in component_mappings.items():
+            if url_pattern in path:
+                return component_type
+        return None
 
     def right_page(self):
         """Implements a panel with the number of interfaces on the right side of the page"""
@@ -179,15 +71,4 @@ class DeviceViewExtension(PluginTemplateExtension):
         )
 
 
-template_extensions = [
-    DeviceViewExtension,
-    InterfaceListExtension,
-    PowerPortListExtension,
-    ConsolePortListExtension,
-    ConsoleServerPortListExtension,
-    PowerOutletListExtension,
-    FrontPortListExtension,
-    RearPortListExtension,
-    DeviceBayListExtension,
-    ModuleBayListExtension,
-]
+template_extensions = [DeviceComponentListExtension]

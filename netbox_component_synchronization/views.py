@@ -157,5 +157,5 @@ class BulkSyncView(LoginRequiredMixin, PermissionRequiredMixin, View):
             )
         else:
             messages.error(request, "Unknown bulk action requested.")
-            # Redirect back to the component list view
-            return redirect(f'/dcim/devices/{device_id}/{component_type}/')
+            # Redirect back to the referring page (component list view)
+            return redirect(request.META.get('HTTP_REFERER', f'/dcim/devices/{device_id}/'))

@@ -29,88 +29,43 @@
         </button>
         <ul class="dropdown-menu" aria-labelledby="bulkSyncDropdown">
             <li>
-                <a class="dropdown-item bulk-sync-action" href="#" 
-                   data-action="add_missing" 
-                   data-device-id="{{ device.id }}" 
-                   data-component-type="{{ component_type }}"
-                   data-confirm="Add all missing components from device type template?">
-                    <i class="mdi mdi-plus text-success"></i> Add Missing Components
-                </a>
+                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_missing">
+                    <button type="submit" class="dropdown-item" onclick="return confirm('Add all missing components from device type template?')">
+                        <i class="mdi mdi-plus text-success"></i> Add Missing Components
+                    </button>
+                </form>
             </li>
             <li>
-                <a class="dropdown-item bulk-sync-action" href="#" 
-                   data-action="repair_out_of_sync" 
-                   data-device-id="{{ device.id }}" 
-                   data-component-type="{{ component_type }}"
-                   data-confirm="Repair name mismatches between device and template?">
-                    <i class="mdi mdi-wrench text-warning"></i> Repair Out of Sync
-                </a>
+                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="repair_out_of_sync">
+                    <button type="submit" class="dropdown-item" onclick="return confirm('Repair name mismatches between device and template?')">
+                        <i class="mdi mdi-wrench text-warning"></i> Repair Out of Sync
+                    </button>
+                </form>
             </li>
             <li>
-                <a class="dropdown-item bulk-sync-action" href="#" 
-                   data-action="remove_out_of_sync" 
-                   data-device-id="{{ device.id }}" 
-                   data-component-type="{{ component_type }}"
-                   data-confirm="Remove components that don't exist in template?">
-                    <i class="mdi mdi-minus text-danger"></i> Remove Out of Sync
-                </a>
+                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_out_of_sync">
+                    <button type="submit" class="dropdown-item" onclick="return confirm('Remove components that don\'t exist in template?')">
+                        <i class="mdi mdi-minus text-danger"></i> Remove Out of Sync
+                    </button>
+                </form>
             </li>
             <li><hr class="dropdown-divider"></li>
             <li>
-                <a class="dropdown-item bulk-sync-action" href="#" 
-                   data-action="sync_all" 
-                   data-device-id="{{ device.id }}" 
-                   data-component-type="{{ component_type }}"
-                   data-confirm="Perform complete synchronization (add missing, repair mismatches, remove extra)?">
-                    <i class="mdi mdi-sync-circle text-primary"></i> Sync All Components
-                </a>
+                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="sync_all">
+                    <button type="submit" class="dropdown-item" onclick="return confirm('Perform complete synchronization (add missing, repair mismatches, remove extra)?')">
+                        <i class="mdi mdi-sync-circle text-primary"></i> Sync All Components
+                    </button>
+                </form>
             </li>
         </ul>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Handle bulk sync actions
-    document.querySelectorAll('.bulk-sync-action').forEach(function(button) {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            const action = this.dataset.action;
-            const deviceId = this.dataset.deviceId;
-            const componentType = this.dataset.componentType;
-            const confirmMessage = this.dataset.confirm;
-            
-            if (confirm(confirmMessage)) {
-                // Create a form and submit it
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/plugins/netbox-component-synchronization/bulk-sync/${deviceId}/${componentType}/`;
-                
-                // Add CSRF token
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                                 document.querySelector('meta[name=csrf-token]')?.getAttribute('content');
-                if (csrfToken) {
-                    const csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = 'csrfmiddlewaretoken';
-                    csrfInput.value = csrfToken;
-                    form.appendChild(csrfInput);
-                }
-                
-                // Add action parameter
-                const actionInput = document.createElement('input');
-                actionInput.type = 'hidden';
-                actionInput.name = 'action';
-                actionInput.value = action;
-                form.appendChild(actionInput);
-                
-                // Submit form
-                document.body.appendChild(form);
-                form.submit();
-            }
-        });
-    });
-});
-</script>
 {% endif %}
