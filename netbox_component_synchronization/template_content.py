@@ -9,8 +9,8 @@ class DeviceComponentListExtension(PluginTemplateExtension):
     """Template extension for device component list views"""
     model = "dcim.device"
     
-    def buttons(self):
-        """Add bulk sync buttons to device component list views"""
+    def full_width_page(self):
+        """Add bulk sync buttons below the table in device component list views"""
         device = self.context.get('object')
         request = self.context.get('request')
         

@@ -1,8 +1,23 @@
 {% load static %}
 
 <style>
+.bulk-sync-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+
+.bulk-sync-container h6 {
+    margin-bottom: 10px;
+    color: #495057;
+}
+
 .bulk-sync-buttons {
-    margin-left: 10px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .bulk-sync-buttons .dropdown-toggle {
@@ -17,55 +32,58 @@
 }
 
 .bulk-sync-buttons .dropdown-menu {
-    min-width: 200px;
+    min-width: 220px;
 }
 </style>
 
 {% if device and device.device_type %}
-<div class="bulk-sync-buttons">
-    <div class="dropdown">
-        <button class="btn btn-purple btn-sm dropdown-toggle" type="button" id="bulkSyncDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="mdi mdi-sync" aria-hidden="true"></i> Bulk Sync
-        </button>
-        <ul class="dropdown-menu" aria-labelledby="bulkSyncDropdown">
-            <li>
-                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="add_missing">
-                    <button type="submit" class="dropdown-item" onclick="return confirm('Add all missing components from device type template?')">
-                        <i class="mdi mdi-plus text-success"></i> Add Missing Components
-                    </button>
-                </form>
-            </li>
-            <li>
-                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="repair_out_of_sync">
-                    <button type="submit" class="dropdown-item" onclick="return confirm('Repair name mismatches between device and template?')">
-                        <i class="mdi mdi-wrench text-warning"></i> Repair Out of Sync
-                    </button>
-                </form>
-            </li>
-            <li>
-                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="remove_out_of_sync">
-                    <button type="submit" class="dropdown-item" onclick="return confirm('Remove components that don\'t exist in template?')">
-                        <i class="mdi mdi-minus text-danger"></i> Remove Out of Sync
-                    </button>
-                </form>
-            </li>
-            <li><hr class="dropdown-divider"></li>
-            <li>
-                <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="sync_all">
-                    <button type="submit" class="dropdown-item" onclick="return confirm('Perform complete synchronization (add missing, repair mismatches, remove extra)?')">
-                        <i class="mdi mdi-sync-circle text-primary"></i> Sync All Components
-                    </button>
-                </form>
-            </li>
-        </ul>
+<div class="bulk-sync-container">
+    <h6><i class="mdi mdi-sync"></i> Component Synchronization</h6>
+    <div class="bulk-sync-buttons">
+        <div class="dropdown">
+            <button class="btn btn-purple btn-sm dropdown-toggle" type="button" id="bulkSyncDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="mdi mdi-sync" aria-hidden="true"></i> Bulk Sync Actions
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="bulkSyncDropdown">
+                <li>
+                    <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_missing">
+                        <button type="submit" class="dropdown-item" onclick="return confirm('Add all missing components from device type template?')">
+                            <i class="mdi mdi-plus text-success"></i> Add Missing Components
+                        </button>
+                    </form>
+                </li>
+                <li>
+                    <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="repair_out_of_sync">
+                        <button type="submit" class="dropdown-item" onclick="return confirm('Repair name mismatches between device and template?')">
+                            <i class="mdi mdi-wrench text-warning"></i> Repair Out of Sync
+                        </button>
+                    </form>
+                </li>
+                <li>
+                    <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="remove_out_of_sync">
+                        <button type="submit" class="dropdown-item" onclick="return confirm('Remove components that don\'t exist in template?')">
+                            <i class="mdi mdi-minus text-danger"></i> Remove Out of Sync
+                        </button>
+                    </form>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <form method="post" action="{% url 'plugins:netbox_component_synchronization:bulk_sync' device_id=device.id component_type=component_type %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="sync_all">
+                        <button type="submit" class="dropdown-item" onclick="return confirm('Perform complete synchronization (add missing, repair mismatches, remove extra)?')">
+                            <i class="mdi mdi-sync-circle text-primary"></i> Sync All Components
+                        </button>
+                    </form>
+                </li>
+            </ul>
+        </div>
     </div>
 </div>
 {% endif %}
