@@ -1,6 +1,9 @@
 from typing import Iterable, Callable
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import View
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 from dcim.models import (
     Device,
     Interface,
@@ -24,10 +27,9 @@ from dcim.models import (
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.conf import settings
-from django.contrib import messages
 from utilities.permissions import get_permission_for_model
 
-from .utils import get_components, post_components
+from .utils import get_components, post_components, handle_bulk_add_missing, handle_bulk_repair_out_of_sync, handle_bulk_remove_out_of_sync, handle_bulk_sync_all
 from .comparison import (
     FrontPortComparison,
     PowerPortComparison,
@@ -127,16 +129,9 @@ class BaseComponentComparisonView(ComponentActionsMixin, LoginRequiredMixin, Per
         )
 
     def post(self, request, device_id):
-        # Check for bulk actions first - redirect to appropriate bulk action view
+        # Check for bulk actions first - handle them directly using the bulk action handlers
         if any(action in request.POST for action in self.actions.keys()):
-            # Determine which bulk action was requested
-            for action in self.actions.keys():
-                if request.POST.get(action):
-                    # Redirect to the bulk action view
-                    from django.urls import reverse
-                    from django.http import HttpResponseRedirect
-                    # For now, we'll handle bulk actions in the same view but could be refactored
-                    return self._handle_bulk_action(request, device_id, action)
+            return self._handle_bulk_action(request, device_id)
         
         # Handle individual component actions (existing logic)
         form = ComponentComparisonForm(request.POST)
@@ -167,27 +162,39 @@ class BaseComponentComparisonView(ComponentActionsMixin, LoginRequiredMixin, Per
             self.component_label,
         )
     
-    def _handle_bulk_action(self, request, device_id, action):
+    def _handle_bulk_action(self, request, device_id):
         """
-        Handle bulk actions by delegating to post_components with the bulk action flag.
-        This maintains existing functionality while following NetBox patterns.
+        Handle bulk actions using the appropriate bulk action handlers.
+        This follows NetBox patterns by delegating to specific handler functions.
         """
         device = get_object_or_404(Device.objects.filter(id=device_id))
         components_qs = self.get_components_qs(device)
         templates_qs = self.get_templates_qs(device)
-        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
         
-        return post_components(
-            request,
-            device,
-            components_qs,
-            templates_qs,
-            self.Model,
-            self.TemplateModel,
-            [],  # No individual components for bulk actions
-            unified_templates,
-            self.component_label,
-        )
+        # Determine which bulk action was requested and call the appropriate handler
+        if request.POST.get('bulk_add_missing'):
+            return handle_bulk_add_missing(
+                request, device, components_qs, templates_qs,
+                self.Model, self.TemplateModel, [], self.component_label
+            )
+        elif request.POST.get('bulk_repair_out_of_sync'):
+            return handle_bulk_repair_out_of_sync(
+                request, device, components_qs, templates_qs,
+                self.Model, self.TemplateModel, [], self.component_label
+            )
+        elif request.POST.get('bulk_remove_out_of_sync'):
+            return handle_bulk_remove_out_of_sync(
+                request, device, components_qs, templates_qs,
+                self.Model, self.TemplateModel, [], self.component_label
+            )
+        elif request.POST.get('bulk_sync_all'):
+            return handle_bulk_sync_all(
+                request, device, components_qs, templates_qs,
+                self.Model, self.TemplateModel, [], self.component_label
+            )
+        else:
+            messages.error(request, "Unknown bulk action requested.")
+            return redirect(request.path)
 
 
 class InterfaceComparisonView(BaseComponentComparisonView):

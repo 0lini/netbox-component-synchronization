@@ -115,16 +115,6 @@ def post_components(
     unified_component_templates,
     component_type,
 ):
-    # Check for bulk operations first
-    if request.POST.get('bulk_add_missing'):
-        return handle_bulk_add_missing(request, device, components, component_templates, ObjectType, ObjectTemplateType, unified_component_templates, component_type)
-    elif request.POST.get('bulk_repair_out_of_sync'):
-        return handle_bulk_repair_out_of_sync(request, device, components, component_templates, ObjectType, ObjectTemplateType, unified_component_templates, component_type)
-    elif request.POST.get('bulk_remove_out_of_sync'):
-        return handle_bulk_remove_out_of_sync(request, device, components, component_templates, ObjectType, ObjectTemplateType, unified_component_templates, component_type)
-    elif request.POST.get('bulk_sync_all'):
-        return handle_bulk_sync_all(request, device, components, component_templates, ObjectType, ObjectTemplateType, unified_component_templates, component_type)
-    
     # Handle individual operations (existing logic)
     # Manually validating components and component templates lists
     add_to_device = filter(
