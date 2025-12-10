@@ -273,8 +273,12 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
         # Pre-fetch power port names to avoid N+1 queries
         power_port_cache = self._initialize_cache(device)
 
-        unified_components = _build_unified_list(components_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache))
-        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache), is_template=True)
+        # Create factory closure with cache
+        def factory_with_cache(i, is_template=False):
+            return self._factory(i, is_template, power_port_cache)
+
+        unified_components = _build_unified_list(components_qs, factory_with_cache)
+        unified_templates = _build_unified_list(templates_qs, factory_with_cache, is_template=True)
 
         return get_components(
             request,
@@ -296,8 +300,12 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
         # Pre-fetch power port names for POST as well
         power_port_cache = self._initialize_cache(device)
 
-        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache), is_template=True)
-        unified_components = [(c, self._factory(c, False, power_port_cache)) for c in fix_name_components]
+        # Create factory closure with cache
+        def factory_with_cache(i, is_template=False):
+            return self._factory(i, is_template, power_port_cache)
+
+        unified_templates = _build_unified_list(templates_qs, factory_with_cache, is_template=True)
+        unified_components = [(c, factory_with_cache(c)) for c in fix_name_components]
 
         return post_components(
             request,
