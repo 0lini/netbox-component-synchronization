@@ -274,7 +274,7 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
         power_port_cache = self._initialize_cache(device)
 
         unified_components = _build_unified_list(components_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache))
-        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, True, power_port_cache), is_template=True)
+        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache), is_template=True)
 
         return get_components(
             request,
@@ -296,7 +296,7 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
         # Pre-fetch power port names for POST as well
         power_port_cache = self._initialize_cache(device)
 
-        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, True, power_port_cache), is_template=True)
+        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache), is_template=True)
         unified_components = [(c, self._factory(c, False, power_port_cache)) for c in fix_name_components]
 
         return post_components(
