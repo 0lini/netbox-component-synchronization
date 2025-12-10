@@ -104,13 +104,16 @@ class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, V
         # Build kwargs from factory_fields
         kwargs = {}
         for field in self.factory_fields:
-            value = getattr(instance, field, None)
             # Handle get_FOO_display() methods for choice fields
             if field.endswith('_display'):
                 base_field = field.replace('_display', '')
                 display_method = f'get_{base_field}_display'
                 if hasattr(instance, display_method):
                     value = getattr(instance, display_method)()
+                else:
+                    value = None
+            else:
+                value = getattr(instance, field, None)
             kwargs[field] = value
         
         kwargs['is_template'] = is_template
