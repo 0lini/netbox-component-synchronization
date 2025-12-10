@@ -127,14 +127,13 @@ def post_components(
     created += len(ObjectType.objects.bulk_create(bulk_create))
 
     # Rename selected components
-    # Create dictionary for O(1) lookup instead of O(n) list.index()
-    templates_lookup = {template: template for template in unified_component_templates}
+    # Create set for O(1) membership testing
+    templates_set = set(unified_component_templates)
     
     fixed = 0
     for component, component_comparison in unified_component:
-        corresponding_template = templates_lookup.get(component_comparison)
-        if corresponding_template:
-            component.name = corresponding_template.name
+        if component_comparison in templates_set:
+            component.name = component_comparison.name
             component.save()
             fixed += 1
 
