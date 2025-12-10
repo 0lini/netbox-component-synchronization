@@ -66,16 +66,56 @@ class BaseComponentComparisonView(LoginRequiredMixin, PermissionRequiredMixin, V
     Model = None
     TemplateModel = None
     ComparisonClass = None
+    # Optional: define which fields to extract from the model instance
+    factory_fields = ('id', 'name', 'label', 'description')
+    # Optional: related field to select_related for query optimization
+    select_related_field = None
+    # Optional: device component accessor (e.g., 'powerports', 'consoleports')
+    device_component_accessor = None
 
     def get_components_qs(self, device: Device):
-        raise NotImplementedError
+        """Get components queryset. Can be overridden for custom logic."""
+        if self.device_component_accessor is None:
+            raise NotImplementedError("Must define device_component_accessor or override get_components_qs")
+        
+        qs = getattr(device, self.device_component_accessor).all().exclude(module_id__isnull=False)
+        
+        if self.select_related_field:
+            qs = qs.select_related(self.select_related_field)
+        
+        return qs
 
     def get_templates_qs(self, device: Device):
-        return self.TemplateModel.objects.filter(device_type=device.device_type)
+        qs = self.TemplateModel.objects.filter(device_type=device.device_type)
+        
+        if self.select_related_field:
+            qs = qs.select_related(self.select_related_field)
+        
+        return qs
 
     def _factory(self, instance, is_template: bool = False):
-        """Default trivial factory (expect subclasses to override)."""
-        raise NotImplementedError
+        """
+        Generic factory method that creates a comparison object.
+        Can be overridden for custom logic.
+        """
+        if self.ComparisonClass is None:
+            raise NotImplementedError("Must define ComparisonClass or override _factory")
+        
+        # Build kwargs from factory_fields
+        kwargs = {}
+        for field in self.factory_fields:
+            value = getattr(instance, field, None)
+            # Handle get_FOO_display() methods for choice fields
+            if field.endswith('_display'):
+                base_field = field.replace('_display', '')
+                display_method = f'get_{base_field}_display'
+                if hasattr(instance, display_method):
+                    value = getattr(instance, display_method)()
+            kwargs[field] = value
+        
+        kwargs['is_template'] = is_template
+        
+        return self.ComparisonClass(**kwargs)
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
@@ -135,26 +175,12 @@ class InterfaceComparisonView(BaseComponentComparisonView):
     Model = Interface
     TemplateModel = InterfaceTemplate
     ComparisonClass = InterfaceComparison
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display', 'enabled', 'mgmt_only', 'poe_mode', 'poe_type', 'rf_role')
 
     def get_components_qs(self, device: Device):
+        # Custom logic for interfaces due to vc_interfaces() and type exclusion
         qs = device.vc_interfaces().exclude(module_id__isnull=False)
         return qs.exclude(type__in=config["exclude_interface_type_list"])
-
-    def _factory(self, i, is_template=False):
-        return InterfaceComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.enabled,
-            i.mgmt_only,
-            i.poe_mode,
-            i.poe_type,
-            i.rf_role,
-            is_template=is_template,
-        )
 
 
 class PowerPortComparisonView(BaseComponentComparisonView):
@@ -168,22 +194,8 @@ class PowerPortComparisonView(BaseComponentComparisonView):
     Model = PowerPort
     TemplateModel = PowerPortTemplate
     ComparisonClass = PowerPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.powerports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return PowerPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.maximum_draw,
-            i.allocated_draw,
-            is_template=is_template,
-        )
+    device_component_accessor = "powerports"
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display', 'maximum_draw', 'allocated_draw')
 
 
 class ConsolePortComparisonView(BaseComponentComparisonView):
@@ -197,20 +209,8 @@ class ConsolePortComparisonView(BaseComponentComparisonView):
     Model = ConsolePort
     TemplateModel = ConsolePortTemplate
     ComparisonClass = ConsolePortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.consoleports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return ConsolePortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            is_template=is_template,
-        )
+    device_component_accessor = "consoleports"
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display')
 
 
 class ConsoleServerPortComparisonView(BaseComponentComparisonView):
@@ -224,20 +224,8 @@ class ConsoleServerPortComparisonView(BaseComponentComparisonView):
     Model = ConsoleServerPort
     TemplateModel = ConsoleServerPortTemplate
     ComparisonClass = ConsoleServerPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.consoleserverports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return ConsoleServerPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            is_template=is_template,
-        )
+    device_component_accessor = "consoleserverports"
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display')
 
 
 class PowerOutletComparisonView(BaseComponentComparisonView):
@@ -251,16 +239,12 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
     Model = PowerOutlet
     TemplateModel = PowerOutletTemplate
     ComparisonClass = PowerOutletComparison
-
-    def get_components_qs(self, device: Device):
-        # Use select_related to fetch power_port in the same query (N+1 fix)
-        return device.poweroutlets.all().exclude(module_id__isnull=False).select_related('power_port')
-
-    def get_templates_qs(self, device: Device):
-        # Use select_related to fetch power_port in the same query (N+1 fix)
-        return self.TemplateModel.objects.filter(device_type=device.device_type).select_related('power_port')
+    device_component_accessor = "poweroutlets"
+    select_related_field = 'power_port'
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display', 'feed_leg')
 
     def _factory(self, i, is_template=False):
+        # Custom factory for power_port_name handling
         power_port_name = ""
         if i.power_port_id is not None:
             try:
@@ -268,6 +252,7 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
                 power_port_name = i.power_port.name
             except Exception:
                 power_port_name = ""
+        
         return PowerOutletComparison(
             i.id,
             i.name,
@@ -292,22 +277,8 @@ class FrontPortComparisonView(BaseComponentComparisonView):
     Model = FrontPort
     TemplateModel = FrontPortTemplate
     ComparisonClass = FrontPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.frontports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return FrontPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.color,
-            i.rear_port_position,
-            is_template=is_template,
-        )
+    device_component_accessor = "frontports"
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display', 'color', 'rear_port_position')
 
 
 class RearPortComparisonView(BaseComponentComparisonView):
@@ -321,22 +292,8 @@ class RearPortComparisonView(BaseComponentComparisonView):
     Model = RearPort
     TemplateModel = RearPortTemplate
     ComparisonClass = RearPortComparison
-
-    def get_components_qs(self, device: Device):
-        return device.rearports.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return RearPortComparison(
-            i.id,
-            i.name,
-            i.label,
-            i.description,
-            i.type,
-            i.get_type_display(),
-            i.color,
-            i.positions,
-            is_template=is_template,
-        )
+    device_component_accessor = "rearports"
+    factory_fields = ('id', 'name', 'label', 'description', 'type', 'type_display', 'color', 'positions')
 
 
 class DeviceBayComparisonView(BaseComponentComparisonView):
@@ -350,14 +307,8 @@ class DeviceBayComparisonView(BaseComponentComparisonView):
     Model = DeviceBay
     TemplateModel = DeviceBayTemplate
     ComparisonClass = DeviceBayComparison
-
-    def get_components_qs(self, device: Device):
-        return device.devicebays.all().exclude(module_id__isnull=False)
-
-    def _factory(self, i, is_template=False):
-        return DeviceBayComparison(
-            i.id, i.name, i.label, i.description, is_template=is_template
-        )
+    device_component_accessor = "devicebays"
+    factory_fields = ('id', 'name', 'label', 'description')
 
 
 class ModuleBayComparisonView(BaseComponentComparisonView):
@@ -371,11 +322,8 @@ class ModuleBayComparisonView(BaseComponentComparisonView):
     Model = ModuleBay
     TemplateModel = ModuleBayTemplate
     ComparisonClass = ModuleBayComparison
+    factory_fields = ('id', 'name', 'label', 'description', 'position')
 
     def get_components_qs(self, device: Device):
+        # Custom logic for module bays - filter by level=0
         return device.modulebays.all().filter(level=0)
-
-    def _factory(self, i, is_template=False):
-        return ModuleBayComparison(
-            i.id, i.name, i.label, i.description, i.position, is_template=is_template
-        )
