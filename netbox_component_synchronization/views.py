@@ -251,18 +251,19 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
     Model = PowerOutlet
     TemplateModel = PowerOutletTemplate
     ComparisonClass = PowerOutletComparison
-    _power_port_cache = None
 
     def get_components_qs(self, device: Device):
         return device.poweroutlets.all().exclude(module_id__isnull=False)
 
-    def _get_power_port_cache(self, is_template, device):
-        """Cache power port lookups to avoid N+1 queries."""
-        if is_template:
-            power_ports = PowerPortTemplate.objects.filter(device_type=device.device_type)
-        else:
-            power_ports = PowerPort.objects.filter(device=device)
-        return {pp.id: pp.name for pp in power_ports}
+    def _initialize_cache(self, device):
+        """Initialize power port cache to avoid N+1 queries."""
+        template_ports = PowerPortTemplate.objects.filter(device_type=device.device_type)
+        component_ports = PowerPort.objects.filter(device=device)
+        
+        return {
+            'template': {pp.id: pp.name for pp in template_ports},
+            'component': {pp.id: pp.name for pp in component_ports}
+        }
 
     def get(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
@@ -270,13 +271,10 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
         templates_qs = self.get_templates_qs(device)
 
         # Pre-fetch power port names to avoid N+1 queries
-        self._power_port_cache = {
-            'template': self._get_power_port_cache(True, device),
-            'component': self._get_power_port_cache(False, device)
-        }
+        power_port_cache = self._initialize_cache(device)
 
-        unified_components = _build_unified_list(components_qs, self._factory)
-        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
+        unified_components = _build_unified_list(components_qs, lambda i, is_template=False: self._factory(i, is_template, power_port_cache))
+        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, True, power_port_cache), is_template=True)
 
         return get_components(
             request,
@@ -289,20 +287,35 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
 
     def post(self, request, device_id):
         device = get_object_or_404(Device.objects.filter(id=device_id))
-        
-        # Pre-fetch power port names for POST as well
-        self._power_port_cache = {
-            'template': self._get_power_port_cache(True, device),
-            'component': self._get_power_port_cache(False, device)
-        }
-        
-        return super().post(request, device_id)
+        components_qs = self.get_components_qs(device)
+        templates_qs = self.get_templates_qs(device)
 
-    def _factory(self, i, is_template=False):
+        fix_ids = _parse_fix_ids(request)
+        fix_name_components = _fix_name_components_from_qs(components_qs, fix_ids)
+
+        # Pre-fetch power port names for POST as well
+        power_port_cache = self._initialize_cache(device)
+
+        unified_templates = _build_unified_list(templates_qs, lambda i, is_template=False: self._factory(i, True, power_port_cache), is_template=True)
+        unified_components = [(c, self._factory(c, False, power_port_cache)) for c in fix_name_components]
+
+        return post_components(
+            request,
+            device,
+            components_qs,
+            templates_qs,
+            self.Model,
+            self.TemplateModel,
+            unified_components,
+            unified_templates,
+            self.component_label,
+        )
+
+    def _factory(self, i, is_template=False, power_port_cache=None):
         power_port_name = ""
-        if i.power_port_id is not None and self._power_port_cache:
+        if i.power_port_id is not None and power_port_cache:
             cache_key = 'template' if is_template else 'component'
-            power_port_name = self._power_port_cache[cache_key].get(i.power_port_id, "")
+            power_port_name = power_port_cache[cache_key].get(i.power_port_id, "")
         return PowerOutletComparison(
             i.id,
             i.name,

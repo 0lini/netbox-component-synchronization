@@ -36,15 +36,15 @@ def get_components(
     overall_powers = list(set(unified_component_templates + unified_components))
     overall_powers.sort(key=lambda o: natural_keys(o.name))
 
-    # Create dictionaries for O(1) lookup instead of O(n) list.index()
-    templates_dict = {item: item for item in unified_component_templates}
-    components_dict = {item: item for item in unified_components}
+    # Create sets for O(1) membership testing
+    templates_set = set(unified_component_templates)
+    components_set = set(unified_components)
 
     comparison_templates = []
     comparison_components = []
     for i in overall_powers:
-        comparison_templates.append(templates_dict.get(i))
-        comparison_components.append(components_dict.get(i))
+        comparison_templates.append(i if i in templates_set else None)
+        comparison_components.append(i if i in components_set else None)
 
     comparison_items = list(zip(comparison_templates, comparison_components))
     return render(
