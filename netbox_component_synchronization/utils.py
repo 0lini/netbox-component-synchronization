@@ -5,7 +5,9 @@ from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.conf import settings
 
+# Cache config at module level to avoid repeated dictionary lookups
 config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
+_compare_description = config.get("compare_description", True)
 
 
 def split(s):
@@ -34,22 +36,15 @@ def get_components(
     overall_powers = list(set(unified_component_templates + unified_components))
     overall_powers.sort(key=lambda o: natural_keys(o.name))
 
+    # Create dictionaries for O(1) lookup instead of O(n) list.index()
+    templates_dict = {item: item for item in unified_component_templates}
+    components_dict = {item: item for item in unified_components}
+
     comparison_templates = []
     comparison_components = []
     for i in overall_powers:
-        try:
-            comparison_templates.append(
-                unified_component_templates[unified_component_templates.index(i)]
-            )
-        except ValueError:
-            comparison_templates.append(None)
-
-        try:
-            comparison_components.append(
-                unified_components[unified_components.index(i)]
-            )
-        except ValueError:
-            comparison_components.append(None)
+        comparison_templates.append(templates_dict.get(i))
+        comparison_components.append(components_dict.get(i))
 
     comparison_items = list(zip(comparison_templates, comparison_components))
     return render(
@@ -77,17 +72,18 @@ def post_components(
     component_type,
 ):
     # Manually validating components and component templates lists
-    add_to_device = filter(
-        lambda i: i in component_templates.values_list("id", flat=True),
-        map(int, filter(lambda x: x.isdigit(), request.POST.getlist("add_to_device"))),
-    )
-    remove_from_device = filter(
-        lambda i: i in components.values_list("id", flat=True),
-        map(
-            int,
-            filter(lambda x: x.isdigit(), request.POST.getlist("remove_from_device")),
-        ),
-    )
+    # Convert POST data to integers and validate against existing IDs
+    valid_template_ids = set(component_templates.values_list("id", flat=True))
+    valid_component_ids = set(components.values_list("id", flat=True))
+    
+    add_to_device = [
+        int(x) for x in request.POST.getlist("add_to_device") 
+        if x.isdigit() and int(x) in valid_template_ids
+    ]
+    remove_from_device = [
+        int(x) for x in request.POST.getlist("remove_from_device")
+        if x.isdigit() and int(x) in valid_component_ids
+    ]
 
     # Remove selected component from the device and count them
     deleted = ObjectType.objects.filter(id__in=remove_from_device).delete()[0]
@@ -100,7 +96,7 @@ def post_components(
     updated = 0
     keys_to_avoid = ["id"]
 
-    if not config["compare_description"]:
+    if not _compare_description:
         keys_to_avoid.append("description")
 
     for i in add_to_device_component.values():
@@ -131,18 +127,16 @@ def post_components(
     created += len(ObjectType.objects.bulk_create(bulk_create))
 
     # Rename selected components
+    # Create dictionary for O(1) lookup instead of O(n) list.index()
+    templates_lookup = {template: template for template in unified_component_templates}
+    
     fixed = 0
     for component, component_comparison in unified_component:
-        try:
-            # Try to extract a component template with the corresponding name
-            corresponding_template = unified_component_templates[
-                unified_component_templates.index(component_comparison)
-            ]
+        corresponding_template = templates_lookup.get(component_comparison)
+        if corresponding_template:
             component.name = corresponding_template.name
             component.save()
             fixed += 1
-        except ValueError:
-            pass
 
     # Generating result message
     message = []

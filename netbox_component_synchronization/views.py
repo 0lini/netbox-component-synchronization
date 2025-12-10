@@ -251,20 +251,58 @@ class PowerOutletComparisonView(BaseComponentComparisonView):
     Model = PowerOutlet
     TemplateModel = PowerOutletTemplate
     ComparisonClass = PowerOutletComparison
+    _power_port_cache = None
 
     def get_components_qs(self, device: Device):
         return device.poweroutlets.all().exclude(module_id__isnull=False)
 
+    def _get_power_port_cache(self, is_template, device):
+        """Cache power port lookups to avoid N+1 queries."""
+        if is_template:
+            power_ports = PowerPortTemplate.objects.filter(device_type=device.device_type)
+        else:
+            power_ports = PowerPort.objects.filter(device=device)
+        return {pp.id: pp.name for pp in power_ports}
+
+    def get(self, request, device_id):
+        device = get_object_or_404(Device.objects.filter(id=device_id))
+        components_qs = self.get_components_qs(device)
+        templates_qs = self.get_templates_qs(device)
+
+        # Pre-fetch power port names to avoid N+1 queries
+        self._power_port_cache = {
+            'template': self._get_power_port_cache(True, device),
+            'component': self._get_power_port_cache(False, device)
+        }
+
+        unified_components = _build_unified_list(components_qs, self._factory)
+        unified_templates = _build_unified_list(templates_qs, self._factory, is_template=True)
+
+        return get_components(
+            request,
+            device,
+            components_qs,
+            unified_components,
+            unified_templates,
+            self.component_label,
+        )
+
+    def post(self, request, device_id):
+        device = get_object_or_404(Device.objects.filter(id=device_id))
+        
+        # Pre-fetch power port names for POST as well
+        self._power_port_cache = {
+            'template': self._get_power_port_cache(True, device),
+            'component': self._get_power_port_cache(False, device)
+        }
+        
+        return super().post(request, device_id)
+
     def _factory(self, i, is_template=False):
         power_port_name = ""
-        if i.power_port_id is not None:
-            try:
-                if is_template:
-                    power_port_name = PowerPortTemplate.objects.get(id=i.power_port_id).name
-                else:
-                    power_port_name = PowerPort.objects.get(id=i.power_port_id).name
-            except Exception:
-                power_port_name = ""
+        if i.power_port_id is not None and self._power_port_cache:
+            cache_key = 'template' if is_template else 'component'
+            power_port_name = self._power_port_cache[cache_key].get(i.power_port_id, "")
         return PowerOutletComparison(
             i.id,
             i.name,

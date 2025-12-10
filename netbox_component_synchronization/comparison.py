@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from django.conf import settings
 
+# Cache config at module level to avoid repeated dictionary lookups
 config = settings.PLUGINS_CONFIG["netbox_component_synchronization"]
+_compare_description = config.get("compare_description", True)
 
 
 @dataclass(frozen=True)
@@ -25,7 +27,7 @@ class ParentComparison:
                 return NotImplemented
             eq = eq and (getattr(self, attr) == getattr(other, attr))
 
-        if config["compare_description"]:
+        if _compare_description:
             eq = eq and (self.description == other.description)
 
         return eq
